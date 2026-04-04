@@ -13,4 +13,6 @@ COURSE_KEYWORDS = {
     "schedule", "available", "availability", "time", "only",
     "constraint", "free", "busy", "weekday", "morning", "afternoon",
     "change", "recommendation", "recommend", "suggest",
+    "research", "paper", "publish", "writing", "thesis", "graduate",
+    "phd", "doctoral", "master",
 }

@@ -32,9 +32,10 @@ JUDGE_TOOL = {
                 "reasoning": {
                     "type": "string",
                     "description": (
-                        "A 2–4 sentence explanation of why this course is the best fit "
-                        "for this specific student, referencing their goals, year, and "
-                        "completed courses."
+                        "A 2–4 sentence explanation of why this course is the best fit, "
+                        "written directly to the student using 'you' and 'your' — "
+                        "never refer to them as 'the student'. "
+                        "Reference their goals, year, and completed courses."
                     ),
                 },
                 "confidence": {
@@ -61,6 +62,12 @@ Pick the SINGLE best course by:
   4. Appropriateness for academic year
 
 Treat schedule constraints as a HARD filter, not a soft preference.
+
+TONE RULE: The student wrote in first person ("I"). Address them directly as "you" in
+your reasoning — never say "the student". For example: "This course suits you because
+you have already completed..." not "This course suits the student because the student
+has already completed...".
+
 Always call select_best_course. Do not respond with plain text.
 """
 

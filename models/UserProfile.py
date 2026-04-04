@@ -172,6 +172,22 @@ RAW_COURSES = [
         ),
         "department": "Computer Science and Information Engineering",
     },
+    {
+        "id": "CSIE6001",
+        "name": "Research Methods in Computer Science",
+        "credits": 2,
+        "semester": "Fall / Spring",
+        "schedule": "Friday 10:00–12:00",
+        "instructor": "Prof. Liu Pei-Shan",
+        "prerequisites": [],
+        "description": (
+            "Academic writing, literature review, experimental design, "
+            "statistical analysis, and paper publication process. "
+            "Mandatory for all PhD students; strongly recommended for Master's students "
+            "planning to write a thesis."
+        ),
+        "department": "Computer Science and Information Engineering",
+    },
 ]
 
 DEGREE_YEAR_RANGES = {
@@ -181,6 +197,13 @@ DEGREE_YEAR_RANGES = {
 }
 
 VALID_COURSE_IDS = {c["id"] for c in RAW_COURSES}
+
+def degree_from_year(year: int) -> str:
+    if year <= 4:
+        return "undergrad"
+    elif year <= 6:
+        return "master"
+    return "phd"
 
 @dataclass
 class UserProfile:
@@ -193,44 +216,70 @@ class UserProfile:
     constraints: list[str]
     search_query: str
 
+    def _is_similar_goal(self, new_goal: str, existing_goals: list[str], threshold: float = 0.6) -> bool:
+        # ↑ must be indented INSIDE the class — 4 spaces
+        STOP_WORDS = {"i", "to", "a", "the", "and", "or", "in", "want", "learn", "study", "take"}
+
+        def key_words(text: str) -> set[str]:
+            return {w.rstrip("s") for w in text.lower().split() if w not in STOP_WORDS}
+
+        new_words = key_words(new_goal)
+        if not new_words:
+            return True
+
+        for g in existing_goals:
+            existing_words = key_words(g)
+            if not existing_words:
+                continue
+            intersection = new_words & existing_words
+            union        = new_words | existing_words
+            jaccard      = len(intersection) / len(union)
+            if jaccard >= threshold:
+                return True
+        return False
+
     def update(self, new_input: str, args: dict) -> None:
         self.raw_input = new_input
 
-        # ── degree_level: explicit mention only ──────────────────────
+        # ── degree_level + academic_year: always update together ─────
         new_degree = args.get("degree_level")
-        if new_degree in ("undergrad", "master", "phd") and new_degree != self.degree_level:
-            self.degree_level = new_degree
+        if new_degree in ("undergrad", "master", "phd"):
+            degree_changed = new_degree != self.degree_level
+            self.degree_level = new_degree  # always accept explicit degree
 
-        # ── academic_year: never go backward ─────────────────────────
-        if "academic_year" in args:
-            lo, hi = DEGREE_YEAR_RANGES[self.degree_level]
-            new_year = max(lo, min(hi, int(args["academic_year"])))
-            if new_year >= self.academic_year:          # only increase
-                self.academic_year = new_year
+            if "academic_year" in args:
+                lo, hi = DEGREE_YEAR_RANGES[self.degree_level]
+                new_year = max(lo, min(hi, int(args["academic_year"])))
+                if degree_changed:
+                    # degree changed → always accept the new year
+                    self.academic_year = new_year
+                else:
+                    # same degree → only increase
+                    if new_year >= self.academic_year:
+                        self.academic_year = new_year
 
-        # ── completed_courses: additive only ─────────────────────────
+        # ── completed_courses ─────────────────────────────────────────
         if "completed_courses" in args:
             incoming = [
                 c for c in (args["completed_courses"] or [])
                 if c in VALID_COURSE_IDS
-                and c not in self.completed_courses     # no duplicates
+                and c not in self.completed_courses
             ]
             self.completed_courses = self.completed_courses + incoming
 
-        # ── goals: fuzzy dedup, keep 6 most recent ───────────────────
+        # ── goals ─────────────────────────────────────────────────────
         if "goals" in args:
             new_goals = [
                 g.strip() for g in (args["goals"] or [])
                 if g.strip()
                 and not self._is_similar_goal(g.strip(), self.goals)
             ]
-            combined   = self.goals + new_goals
-            self.goals = combined[-6:]                  # most recent 6
+            combined = self.goals + new_goals
+            self.goals = combined[-6:]
 
-        # ── constraints: additive, allow explicit removal ────────────
+        # ── constraints ───────────────────────────────────────────────
         if "constraints" in args:
             incoming = args["constraints"] or []
-            # detect removals: "no longer", "not anymore", "removed"
             removals = [
                 c for c in incoming
                 if any(kw in c.lower() for kw in ("no longer", "not anymore", "removed"))
@@ -246,7 +295,7 @@ class UserProfile:
                 if not any(r.lower() in c.lower() for r in removals)
             ] + additions
 
-        # ── search_query: always rebuild from current state ──────────
+        # ── search_query ──────────────────────────────────────────────
         if "search_query" in args and args["search_query"].strip():
             self.search_query = args["search_query"].strip()
         else:

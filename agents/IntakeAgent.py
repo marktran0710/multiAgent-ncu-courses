@@ -8,7 +8,7 @@ from typing import Optional
 from config.main import GROQ_DEFAULT_MODEL
 from function.main import call_groq_with_tools, call_gemini_with_tools
 from keywords.CourseKeywords import COURSE_KEYWORDS
-from models.UserProfile import DEGREE_YEAR_RANGES, RAW_COURSES, VALID_COURSE_IDS, UserProfile
+from models.UserProfile import DEGREE_YEAR_RANGES, RAW_COURSES, VALID_COURSE_IDS, UserProfile, degree_from_year
 
 INTAKE_TOOL = {
     "type": "function",
@@ -24,7 +24,20 @@ INTAKE_TOOL = {
             "properties": {
                 "academic_year": {
                     "type": "integer",
-                    "description": "Student's current academic year (1=freshman, 2=sophomore, 3=junior, 4=senior). Infer from context if not stated; default to 1.",
+                    "description": (
+                        "Student's current year. Use this mapping:\n"
+                        "  Undergraduate : 1 (freshman), 2 (sophomore), 3 (junior), 4 (senior)\n"
+                        "  Master's      : 5 (1st year), 6 (2nd year)\n"
+                        "  PhD           : 7 (1st year), 8 (2nd year), 9 (3rd year), 10 (4th year+)\n"
+                        "Infer from context:\n"
+                        "  'freshman' / 'new student' / no hint → 1\n"
+                        "  'Master's' / 'grad student' / 'MSc'  → 5\n"
+                        "  'PhD' / 'doctoral' / 'dissertation'  → 7\n"
+                        "  '2nd year Master's'                  → 6\n"
+                        "  '3rd year PhD'                       → 9"
+                    ),
+                    "minimum": 1,
+                    "maximum": 10,
                 },
                 "completed_courses": {
                     "type": "array",
@@ -112,10 +125,19 @@ class IntakeAgent:
         return call_groq_with_tools(messages, [INTAKE_TOOL], model=self.model)
 
     def _heuristic_fallback(self, raw_input: str) -> UserProfile:
+        text = raw_input.lower()
+
+        if re.search(r"\b(phd|doctoral|dissertation|candidacy)\b", text):
+            year = 7
+        elif re.search(r"\b(master|masters|msc|grad(uate)? student|thesis)\b", text):
+            year = 5
+        else:
+            year = 1
+
         return UserProfile(
             raw_input=raw_input,
-            academic_year=1,
-            degree_level="undergrad",
+            academic_year=year,
+            degree_level=degree_from_year(year),  # tự map
             completed_courses=[],
             goals=[],
             constraints=[],
@@ -145,20 +167,42 @@ class IntakeAgent:
         system = INTAKE_SYSTEM
         if existing_profile:
             system += f"""
+                EXISTING PROFILE (source of truth):
+                academic_year    : {existing_profile.academic_year}
+                degree_level     : {existing_profile.degree_level}
+                completed_courses: {existing_profile.completed_courses}
+                goals            : {existing_profile.goals}
+                constraints      : {existing_profile.constraints}
 
-EXISTING PROFILE (source of truth — do not contradict):
-academic_year    : {existing_profile.academic_year}  ← only increase
-degree_level     : {existing_profile.degree_level}   ← only change if student says so
-completed_courses: {existing_profile.completed_courses}  ← return ONLY new ones
-goals            : {existing_profile.goals}  ← return ONLY new ones, empty list if none
-constraints      : {existing_profile.constraints}
+                RULES FOR THIS TURN — read carefully:
 
-YOUR JOB THIS TURN:
-- Return academic_year = {existing_profile.academic_year} unless student explicitly says otherwise
-- Return completed_courses = [] unless student mentions completing something new
-- Return goals = [] unless student mentions a genuinely new learning goal
-- Return search_query that reflects the student's CURRENT question
-"""
+                1. academic_year + degree_level (always update together):
+                - Default: return existing values as-is
+                - EXCEPTION: if student explicitly corrects their level
+                    (e.g. "I'm actually PhD", "I realized I'm a master student")
+                    → update BOTH fields together:
+                    undergrad → academic_year between 1-4
+                    master    → academic_year between 5-6
+                    phd       → academic_year between 7-10
+
+                2. completed_courses:
+                - Return ONLY courses mentioned in THIS message as newly completed
+                - Return [] if student did not mention completing anything new
+                - Do NOT repeat: {existing_profile.completed_courses}
+
+                3. goals:
+                - Return ONLY goals that are genuinely new and not already in: {existing_profile.goals}
+                - Return [] if no new goals mentioned
+                - "research papers", "publishing", "thesis" are valid academic goals
+
+                4. constraints:
+                - Return ONLY new constraints not already in: {existing_profile.constraints}
+                - Return [] if no new constraints mentioned
+
+                5. search_query:
+                - Always reflect the student's CURRENT question in this message
+                - Include degree level context: PhD/master students need graduate-level courses
+                """
 
         messages = [
             {"role": "system", "content": system},
@@ -185,17 +229,15 @@ YOUR JOB THIS TURN:
             return existing_profile or self._heuristic_fallback(raw_input)
 
     def _build_profile(self, raw_input: str, args: dict) -> UserProfile:
-        degree_level = args.get("degree_level", "undergrad")
-        if degree_level not in DEGREE_YEAR_RANGES:
-            degree_level = "undergrad"
 
-        lo, hi = DEGREE_YEAR_RANGES[degree_level]
-        academic_year = max(lo, min(hi, int(args.get("academic_year", lo))))
-        completed     = [c for c in (args.get("completed_courses") or []) if c in VALID_COURSE_IDS]
+        year = max(1, min(10, int(args.get("academic_year", 1))))
+        degree_level = degree_from_year(year)
+
+        completed = [c for c in (args.get("completed_courses") or []) if c in VALID_COURSE_IDS]
 
         return UserProfile(
             raw_input=raw_input,
-            academic_year=academic_year,
+            academic_year=year,
             degree_level=degree_level,
             completed_courses=completed,
             goals=args.get("goals") or [],
