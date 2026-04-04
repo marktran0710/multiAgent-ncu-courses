@@ -3,7 +3,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 from config.main import GROQ_DEFAULT_MODEL
-from function.main import call_groq_with_tools
+from function.main import call_gemini_with_tools, call_groq_with_tools
 from models.JudgeVerdict import JudgeVerdict
 from models.RetrievalResult import RetrievalResult
 from models.UserProfile import UserProfile
@@ -78,11 +78,19 @@ class JudgeAgent:
 
     name = "JudgeAgent"
 
+    def __init__(self, model: str = GROQ_DEFAULT_MODEL, provider: str = "groq"):
+        self.model    = model
+        self.provider = provider
+
+    def _call_llm(self, messages: list[dict]) -> dict:
+        if self.provider == "gemini":
+            return call_gemini_with_tools(messages, [JUDGE_TOOL], model=self.model)
+        return call_groq_with_tools(messages, [JUDGE_TOOL], model=self.model)
+    
     def process(
         self,
         profile: UserProfile,
         fused_results: list[RetrievalResult],
-        model: str = GROQ_DEFAULT_MODEL,
     ) -> JudgeVerdict | None:
         if not fused_results:
             print(f"[{self.name}] No eligible courses — skipping judgment.")
@@ -107,10 +115,10 @@ class JudgeAgent:
         ]
 
         try:
-            args = call_groq_with_tools(messages, [JUDGE_TOOL], model=model)
+            args = self._call_llm(messages)
             return self._build_verdict(args, fused_results)
         except Exception as exc:
-            print(f"[{self.name}] Groq call failed: {exc}. Defaulting to RRF #1.")
+            print(f"[{self.name}] LLM call failed ({self.provider}): {exc}. Defaulting to RRF #1.")
             return self._fallback_verdict(fused_results)
 
     # ── helpers ──────────────────────────────────────────────────────────────

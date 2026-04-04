@@ -32,16 +32,17 @@ class CourseFinderOrchestrator:
                ResponseAgent (formatted output)
     """
 
-    def __init__(self, model: str = GROQ_DEFAULT_MODEL):
-        self.model = model
+    def __init__(self, model: str = GROQ_DEFAULT_MODEL, provider: str = "groq"):
+        self.model    = model
+        self.provider = provider
         courses = [Course(**c) for c in RAW_COURSES]
         self.course_map = {c.id: c for c in courses}
 
-        self.intake_agent   = IntakeAgent()
+        self.intake_agent = IntakeAgent(model=model, provider=provider)
+        self.judge_agent  = JudgeAgent(model=model, provider=provider)
         self.bm25_agent     = BM25Agent(courses)
         self.vector_agent   = VectorAgent(courses)
         self.fusion_agent   = FusionAgent()
-        self.judge_agent    = JudgeAgent()
         self.response_agent = ResponseAgent()
 
     def run(self, raw_input: str, profile: Optional[UserProfile] = None) -> tuple[str, UserProfile | None]:
@@ -66,7 +67,7 @@ class CourseFinderOrchestrator:
                 # Fallback if no courses are eligible based on the current search
                 verdict = None 
             else:
-                verdict = self.judge_agent.process(profile, eligible, model=self.model)
+                verdict = self.judge_agent.process(profile, eligible)
 
             # 5. Final Formatting
             output = self.response_agent.process(
