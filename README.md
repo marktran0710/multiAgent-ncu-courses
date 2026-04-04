@@ -13,7 +13,7 @@
 | Query used for retrieval | Raw user string          | Synthesised `search_query` from profile                                     |
 | Output                   | Ranked list only         | Ranked list + judge verdict + confidence level                              |
 | LLM backend              | Ollama (local)           | **Groq** (`llama-3.3-70b-versatile`) or **Gemini** (`gemini-2.5-flash`)     |
-| Student support          | Undergrad only           | **Undergrad + Master's + PhD** with `degree_level` field                    |
+| Student support          | Undergrad only           | **Undergrad + Master's + PhD** via `academic_year` mapping                  |
 | Embeddings               | Ollama Llama3            | **Sentence-Transformers** (`all-MiniLM-L6-v2`)                              |
 | Session memory           | Stateless (single turn)  | **Multi-turn** — `UserProfile.update()` merges follow-up input across turns |
 | Course catalogue         | 3 undergrad courses      | **12 courses** across CSIE and Mathematics departments                      |
@@ -109,23 +109,11 @@ Both Groq and Gemini are fully supported. The provider is selected at runtime vi
 | `groq`   | `llama-3.3-70b-versatile` | Default provider          |
 | `gemini` | `gemini-2.5-flash`        | Requires `GEMINI_API_KEY` |
 
-### Provider routing
-
-Both `IntakeAgent` and `JudgeAgent` accept a `provider` argument at construction and route internally:
-
-```python
-# Groq
-IntakeAgent(model="llama-3.3-70b-versatile", provider="groq")
-
-# Gemini
-IntakeAgent(model="gemini-2.5-flash", provider="gemini")
-```
-
 ---
 
 ## Graduate Student Support
 
-Academic year encoding spans both undergrad and graduate programmes:
+Academic year encodes both undergrad and graduate programmes — `degree_level` is derived automatically via `degree_from_year()`, no separate field needed:
 
 | Degree Level  | `degree_level` | `academic_year` range |
 | ------------- | -------------- | --------------------- |
@@ -133,11 +121,15 @@ Academic year encoding spans both undergrad and graduate programmes:
 | Master's      | `"master"`     | 5 – 6                 |
 | PhD           | `"phd"`        | 7 – 10                |
 
-The IntakeAgent infers degree level from natural language:
+The LLM maps natural language to the correct year:
 
-- `"grad student"`, `"Master's"`, `"MSc"`, `"thesis"` → `master`
-- `"PhD"`, `"doctoral"`, `"dissertation"`, `"candidacy"` → `phd`
-- No hint / `"freshman"` / `"new to programming"` → `undergrad`
+| Input phrase                    | → `academic_year` |
+| ------------------------------- | ----------------- |
+| `"freshman"` / no hint          | 1                 |
+| `"Master's"` / `"grad student"` | 5                 |
+| `"2nd year Master's"`           | 6                 |
+| `"PhD"` / `"doctoral"`          | 7                 |
+| `"3rd year PhD"`                | 9                 |
 
 ---
 
@@ -164,92 +156,73 @@ The IntakeAgent infers degree level from natural language:
 
 `FusionAgent` splits all retrieved courses into two groups before passing to `JudgeAgent`:
 
-- **Eligible** — all prerequisites in `profile.completed_courses` ✅
-- **Locked** — one or more prerequisites missing, shown with "complete first" chain ✗
-
-The JudgeAgent only sees eligible courses. Locked courses are displayed in the output for guidance but can never be recommended.
+- **Eligible** — all prerequisites met ✅ → passed to JudgeAgent
+- **Locked** — one or more prerequisites missing 🔒 → shown in output with "complete first" chain, never recommended
 
 ---
 
 ## Multi-Turn Profile Updates
 
-`UserProfile.update()` merges follow-up input into the existing profile without overwriting prior information:
+`UserProfile.update()` merges follow-up input without overwriting prior information:
 
-- **Lists** (`completed_courses`, `goals`, `constraints`) are **appended and deduplicated** — old data is never lost.
-- **Scalar fields** (`degree_level`, `academic_year`, `search_query`) are only overwritten if the new message explicitly changes them.
-- **Off-topic guard** only fires on the first message — follow-up messages in an active session always pass through.
-- **LLM failure on update** — the existing profile is returned unchanged rather than resetting to defaults.
-
-```python
-profile = None
-while True:
-    raw = input("You: ").strip()
-    output, new_profile = orchestrator.run(raw, profile=profile)
-    if new_profile is not None:      # only update on valid turns
-        profile = new_profile
-    print(output)
-```
-
----
-
-## Clarification Flow
-
-If the IntakeAgent cannot confidently map a course name to a valid ID, it sets `needs_clarification=true` instead of guessing. The system prints the full course catalogue and holds the current profile until the user clarifies:
-
-```
-You: I also finished that discrete math thing
-→ [IntakeAgent] Unsure about a course name. Please clarify:
-    CSIE1001: Introduction to Programming
-    CSIE1002: Discrete Mathematics
-    ...
-You: CSIE1002
-→ [Profile updated: completed_courses += CSIE1002]
-```
-
----
-
-## Function Call Tool Schemas
-
-### `extract_user_profile` (IntakeAgent)
-
-```json
-{
-  "academic_year": 3,
-  "completed_courses": ["CSIE1001", "CSIE1002", "CSIE2001"],
-  "goals": ["machine learning"],
-  "constraints": ["Tuesday and Thursday only"],
-  "search_query": "machine learning AI algorithms advanced CSIE NCU",
-  "needs_clarification": false
-}
-```
-
-### `select_best_course` (JudgeAgent)
-
-```json
-{
-  "best_course_id": "CSIE4001",
-  "runner_up_id": "CSIE4003",
-  "reasoning": "All prerequisites are met. CSIE4001 Machine Learning directly aligns with the student's AI goals and is the natural next step after completing Algorithms and Linear Algebra.",
-  "confidence": "high"
-}
-```
+- **Lists** (`completed_courses`, `goals`, `constraints`) — appended and deduplicated
+- **Scalar fields** (`degree_level`, `academic_year`, `search_query`) — only overwritten on explicit change
+- **LLM failure on update** — existing profile returned unchanged
 
 ---
 
 ## Setup
 
+### 1. Clone the repo
+
+```bash
+git clone <repo-url>
+cd multiAgent-ncu-courses
+```
+
+### 2. Create and activate a virtual environment
+
+```bash
+# macOS / Linux
+python3 -m venv venv
+source venv/bin/activate
+
+# Windows (Command Prompt)
+python -m venv venv
+venv\Scripts\activate.bat
+
+# Windows (PowerShell)
+python -m venv venv
+venv\Scripts\Activate.ps1
+```
+
+### 3. Install dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
-Create a `.env` file:
+### 4. Configure environment variables
+
+Copy the example file and fill in your API keys:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env`:
 
 ```
 GROQ_API_KEY=your_groq_key_here
-GEMINI_API_KEY=your_gemini_key_here   # only needed if using --provider gemini
+GEMINI_API_KEY=your_gemini_key_here
 ```
 
-Get API keys at [console.groq.com](https://console.groq.com) and [aistudio.google.com](https://aistudio.google.com).
+Get your keys at:
+
+- Groq → [console.groq.com](https://console.groq.com)
+- Gemini → [aistudio.google.com](https://aistudio.google.com)
+
+> `GEMINI_API_KEY` is only required if using `--provider gemini`.
 
 ---
 
@@ -268,9 +241,6 @@ python main.py --provider gemini -q "I finished ML, should I go into vision or l
 
 # Specific model
 python main.py --provider gemini --model gemini-1.5-pro
-
-# List available models for a provider
-python main.py --provider gemini --list-models
 
 # Show current provider/model mid-session
 You: model
@@ -305,18 +275,17 @@ Query      : machine learning AI algorithms advanced
   Confidence  : HIGH  ★★★
 
   Why this course?
-    All prerequisites are met. CSIE4001 directly aligns with
-    the student's AI and machine learning goals and is the
-    natural next step after completing Algorithms and Linear
-    Algebra.
+    All prerequisites are met. You have already completed
+    Algorithms and Linear Algebra, making CSIE4001 the
+    natural next step toward your machine learning goals.
 
   🥈 Runner-up  : [CSIE4003] Natural Language Processing
 
   📋 ALL ELIGIBLE COURSES  (3 found)
 ─────────────────────────────────────────────────────────────────
-  #1  [CSIE4001] Machine Learning          RRF=0.03226  ◄ recommended
-  #2  [MATH2002] Probability and Statistics RRF=0.01639
-  #3  [CSIE1002] Discrete Mathematics      RRF=0.01266
+  #1  [CSIE4001] Machine Learning           RRF=0.03226  ◄ recommended
+  #2  [MATH2002] Probability and Statistics  RRF=0.01639
+  #3  [CSIE1002] Discrete Mathematics       RRF=0.01266
 
   🔒 LOCKED COURSES  (prerequisites not yet met)
 ─────────────────────────────────────────────────────────────────
@@ -355,8 +324,6 @@ You: I finished ML. Should I go into vision or language?
 
 ## Offline Fallback
 
-All agents degrade gracefully when the LLM or Sentence-Transformers is unavailable:
-
 | Agent                         | Fallback behaviour                                                |
 | ----------------------------- | ----------------------------------------------------------------- |
 | **IntakeAgent**               | Heuristic regex — detects year keywords, degree level, course IDs |
@@ -369,7 +336,6 @@ All agents degrade gracefully when the LLM or Sentence-Transformers is unavailab
 ## Tests
 
 ```bash
-pip install pytest
 pytest test_demo_scenarios.py -v
 
 # Single test
@@ -395,7 +361,7 @@ multiAgent-ncu-courses/
 │   └── ResponseAgent.py           # Agent 6 — output formatting
 ├── models/
 │   ├── Course.py
-│   ├── UserProfile.py             # Profile + update() merge logic
+│   ├── UserProfile.py             # Profile + update() + degree_from_year()
 │   ├── RetrievalResult.py
 │   └── JudgeVerdict.py
 ├── function/
@@ -406,9 +372,39 @@ multiAgent-ncu-courses/
 ├── config/
 │   └── main.py                    # Model + provider defaults
 ├── test_demo_scenarios.py         # 10 demo test cases
-├── .env                           # API keys (not committed)
+├── .env.example                   # API key template (safe to commit)
+├── .env                           # Your actual keys (never commit)
+├── .gitignore
 ├── requirements.txt
 └── README.md
+```
+
+---
+
+## .env.example
+
+```bash
+# Groq API key — required (default provider)
+# Get yours at https://console.groq.com
+GROQ_API_KEY=your_groq_key_here
+
+# Gemini API key — only required if using --provider gemini
+# Get yours at https://aistudio.google.com
+GEMINI_API_KEY=your_gemini_key_here
+```
+
+---
+
+## .gitignore
+
+Make sure `.env` is never committed:
+
+```
+venv/
+.env
+__pycache__/
+*.pyc
+.chromadb/
 ```
 
 ---
