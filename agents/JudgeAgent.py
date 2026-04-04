@@ -119,12 +119,25 @@ class JudgeAgent:
     def _build_verdict(args: dict, fused: list[RetrievalResult]) -> JudgeVerdict:
         valid_ids = {r.course.id for r in fused}
         best_id = args.get("best_course_id", "")
+
         if best_id not in valid_ids:
-            best_id = fused[0].course.id  # graceful hallucination fallback
+            # Groq hallucinated — scan top 3 and pick the best fit by
+            # checking if the course name appears in the reasoning text
+            reasoning_lower = args.get("reasoning", "").lower()
+            top3 = fused[:3]
+            best_id = fused[0].course.id  # default to RRF #1
+            for r in top3:
+                if any(word in reasoning_lower for word in r.course.name.lower().split()):
+                    best_id = r.course.id
+                    break
 
         runner_up = args.get("runner_up_id")
-        if runner_up not in valid_ids:
-            runner_up = None
+        if runner_up not in valid_ids or runner_up == best_id:
+            # assign runner-up as the next top-3 course that isn't best
+            runner_up = next(
+                (r.course.id for r in fused[:3] if r.course.id != best_id),
+                None,
+            )
 
         return JudgeVerdict(
             best_course_id=best_id,
