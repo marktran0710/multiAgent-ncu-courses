@@ -7,7 +7,7 @@ import re
 from config.main import GROQ_DEFAULT_MODEL
 from function.main import call_groq_with_tools
 from keywords.CourseKeywords import COURSE_KEYWORDS
-from models.UserProfile import DEGREE_YEAR_RANGES, VALID_COURSE_IDS, UserProfile
+from models.UserProfile import DEGREE_YEAR_RANGES, RAW_COURSES, VALID_COURSE_IDS, UserProfile
 from typing import Any, Optional
 
 INTAKE_TOOL = {
@@ -28,17 +28,38 @@ INTAKE_TOOL = {
                 },
                 "completed_courses": {
                     "type": "array",
-                    "items": {"type": "string"},
+                    "items": {
+                        "type": "string",
+                        "enum": sorted(VALID_COURSE_IDS),
+                    },
                     "description": (
-                        "List of NCU course IDs the student has already completed. "
-                        f"Valid IDs: {sorted(VALID_COURSE_IDS)}. "
-                        "Return empty list if none mentioned."
+                        "Course IDs the student has EXPLICITLY said they completed. "
+                        "Use semantic meaning to identify the course — match based on topic, not exact wording:\n"
+                        + "\n".join(f'  - {c["id"]}: {c["name"]} — {c["description"][:80]}' for c in RAW_COURSES)
+                        + "\n\nRULES:\n"
+                        "- Only include courses the student clearly stated they finished.\n"
+                        "- Use course descriptions above to resolve ambiguous names semantically.\n"
+                        "- If unsure which course the student means, do NOT guess — leave it out and set needs_clarification=true.\n"
+                        "- Never include courses the student only mentioned wanting to take.\n"
+                        "- 'discrete mathematics' → CSIE1002 (not MATH2001).\n"
+                        "- 'linear algebra' → MATH2001 (not CSIE1002)."
+                    ),
+                },
+                "needs_clarification": {
+                    "type": "boolean",
+                    "description": (
+                        "Set to true if the student mentioned a course name that is ambiguous or "
+                        "could not be confidently mapped to a course ID. "
+                        "When true, the system will ask the student to clarify."
                     ),
                 },
                 "goals": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "What the student wants to learn or achieve. Extract 1–4 concise goal phrases.",
+                    "description": (
+                        "Only include if the student EXPLICITLY states what they want to learn or achieve. "
+                        "Do NOT infer or hallucinate goals. Leave empty if not clearly stated."
+                    ),
                 },
                 "constraints": {
                     "type": "array",
@@ -67,6 +88,10 @@ STRICT RULES:
 - If the student asks ANYTHING unrelated to courses or academics, refuse and redirect.
 - Never answer questions about general knowledge, coding help, or off-topic subjects.
 - Always call the extract_user_profile function — never reply with plain text.
+
+IMPORTANT: Only populate 'goals' if the student explicitly mentions what they want 
+to achieve. If they only mention completed courses or ask what to take next, 
+leave goals empty — do not infer.
 
 Be generous in inference: if the student says "I'm new to programming", infer
 academic_year=1 and completed_courses=[].
@@ -129,6 +154,15 @@ class IntakeAgent:
         ]
         try:
             args = call_groq_with_tools(messages, [INTAKE_TOOL], model=model)
+
+            if args.get("needs_clarification"):
+                course_list = "\n".join(f"  {c['id']}: {c['name']}" for c in RAW_COURSES)
+                print(
+                    f"\n[{self.name}] Groq is unsure about a course. Asking user to clarify...\n"
+                    f"Which course did you mean? Please use the course ID or exact name:\n{course_list}"
+                )
+                return existing_profile  # hold current profile, wait for next turn
+
             if existing_profile:
                 existing_profile.update(raw_input, args)
                 return existing_profile
