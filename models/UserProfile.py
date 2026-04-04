@@ -257,6 +257,7 @@ class UserProfile:
                     # same degree → only increase
                     if new_year >= self.academic_year:
                         self.academic_year = new_year
+                    self.degree_level = degree_from_year(self.academic_year)
 
         # ── completed_courses ─────────────────────────────────────────
         if "completed_courses" in args:
