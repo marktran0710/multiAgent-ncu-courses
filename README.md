@@ -1,6 +1,6 @@
 # Multi-Agent Course Finder v2 — NCU CSIE Midterm
 
-### BM25 + Sentence-Transformers + Groq Function Calling (Intake & Judge Agents)
+### BM25 + Sentence-Transformers + Groq / Gemini Function Calling (Intake & Judge Agents)
 
 ---
 
@@ -8,15 +8,18 @@
 
 | Feature                  | v1                       | v2                                                                          |
 | ------------------------ | ------------------------ | --------------------------------------------------------------------------- |
-| User input parsing       | Simple string validation | **IntakeAgent** — Groq function call extracts structured `UserProfile`      |
-| Final answer             | Full ranked list         | **JudgeAgent** — Groq function call picks single best course with reasoning |
+| User input parsing       | Simple string validation | **IntakeAgent** — LLM function call extracts structured `UserProfile`       |
+| Final answer             | Full ranked list         | **JudgeAgent** — LLM function call picks single best course with reasoning  |
 | Query used for retrieval | Raw user string          | Synthesised `search_query` from profile                                     |
 | Output                   | Ranked list only         | Ranked list + judge verdict + confidence level                              |
-| LLM backend              | Ollama (local)           | **Groq API** (`llama-3.3-70b-versatile`)                                    |
+| LLM backend              | Ollama (local)           | **Groq** (`llama-3.3-70b-versatile`) or **Gemini** (`gemini-2.5-flash`)     |
 | Student support          | Undergrad only           | **Undergrad + Master's + PhD** with `degree_level` field                    |
 | Embeddings               | Ollama Llama3            | **Sentence-Transformers** (`all-MiniLM-L6-v2`)                              |
 | Session memory           | Stateless (single turn)  | **Multi-turn** — `UserProfile.update()` merges follow-up input across turns |
-| Course catalogue         | 3 undergrad courses      | **6 courses** — 3 undergrad + 2 Master's + 1 PhD                            |
+| Course catalogue         | 3 undergrad courses      | **12 courses** across CSIE and Mathematics departments                      |
+| Off-topic guard          | None                     | Keyword-based guard on first message only                                   |
+| Prerequisites            | Not checked              | Hard filter — locked courses shown with "complete first" chain              |
+| Clarification            | None                     | Agent asks user to clarify ambiguous course names                           |
 
 ---
 
@@ -27,11 +30,13 @@ User free-text input  (single-turn or multi-turn follow-up)
         │
         ▼
 ┌─────────────────────────────────────────────────────────┐
-│  IntakeAgent  (Groq function call)                      │
+│  IntakeAgent  (Groq or Gemini function call)            │
 │                                                         │
 │  Tool: extract_user_profile                             │
 │  First turn  → builds fresh UserProfile                 │
 │  Follow-up   → merges changes via UserProfile.update()  │
+│  Off-topic   → rejected on first message only           │
+│  Ambiguous   → asks user to clarify course name         │
 │                                                         │
 │  Output: UserProfile {                                  │
 │    degree_level, academic_year,                         │
@@ -53,18 +58,18 @@ User free-text input  (single-turn or multi-turn follow-up)
            ┌──────────────────┐
            │  FusionAgent     │
            │  RRF (k=60)      │
+           │  + prereq filter │
            └────────┬─────────┘
-                    │  ranked candidates
+                    │  eligible / locked split
                     ▼
 ┌─────────────────────────────────────────────────────────┐
-│  JudgeAgent  (Groq function call)                       │
+│  JudgeAgent  (Groq or Gemini function call)             │
 │                                                         │
 │  Tool: select_best_course                               │
-│  Input: UserProfile + RRF-ranked candidates             │
-│  Steers toward correct level:                           │
-│    Undergrad → CSIE1xxx/2xxx                            │
-│    Master's  → CSIE5xxx                                 │
-│    PhD       → CSIE5xxx/6xxx                            │
+│  Input: UserProfile + RRF-ranked eligible candidates    │
+│  Hallucination guard: scans top-3 if ID invalid         │
+│  Schedule constraints treated as hard filter            │
+│  Never recommends already-completed courses             │
 │                                                         │
 │  Output: JudgeVerdict {                                 │
 │    best_course_id, runner_up_id,                        │
@@ -75,6 +80,8 @@ User free-text input  (single-turn or multi-turn follow-up)
           ┌─────────────────┐
           │  ResponseAgent  │
           │  Final output   │
+          │  eligible list  │
+          │  locked list    │
           └─────────────────┘
 ```
 
@@ -82,14 +89,37 @@ User free-text input  (single-turn or multi-turn follow-up)
 
 ## Agents
 
-| #   | Agent             | Role                                                       | Groq call?                     |
-| --- | ----------------- | ---------------------------------------------------------- | ------------------------------ |
-| 1   | **IntakeAgent**   | Extracts / updates structured `UserProfile` from free text | ✅ `extract_user_profile` tool |
-| 2   | **BM25Agent**     | Keyword retrieval with BM25Okapi (top-5)                   | —                              |
-| 3   | **VectorAgent**   | Semantic retrieval with Sentence-Transformers + ChromaDB   | —                              |
-| 4   | **FusionAgent**   | Reciprocal Rank Fusion (RRF, k=60)                         | —                              |
-| 5   | **JudgeAgent**    | Picks single best course with degree-aware reasoning       | ✅ `select_best_course` tool   |
-| 6   | **ResponseAgent** | Formats all results into final output                      | —                              |
+| #   | Agent             | Role                                                         | LLM call?                      |
+| --- | ----------------- | ------------------------------------------------------------ | ------------------------------ |
+| 1   | **IntakeAgent**   | Extracts / updates structured `UserProfile` from free text   | ✅ `extract_user_profile` tool |
+| 2   | **BM25Agent**     | Keyword retrieval with BM25Okapi (top-6)                     | —                              |
+| 3   | **VectorAgent**   | Semantic retrieval with Sentence-Transformers + ChromaDB     | —                              |
+| 4   | **FusionAgent**   | Reciprocal Rank Fusion (RRF, k=60) + prerequisite gate       | —                              |
+| 5   | **JudgeAgent**    | Picks single best course with reasoning, hallucination guard | ✅ `select_best_course` tool   |
+| 6   | **ResponseAgent** | Formats eligible list, locked list, and judge verdict        | —                              |
+
+---
+
+## Multi-Provider LLM Support
+
+Both Groq and Gemini are fully supported. The provider is selected at runtime via `--provider`.
+
+| Provider | Default model             | Notes                     |
+| -------- | ------------------------- | ------------------------- |
+| `groq`   | `llama-3.3-70b-versatile` | Default provider          |
+| `gemini` | `gemini-2.5-flash`        | Requires `GEMINI_API_KEY` |
+
+### Provider routing
+
+Both `IntakeAgent` and `JudgeAgent` accept a `provider` argument at construction and route internally:
+
+```python
+# Groq
+IntakeAgent(model="llama-3.3-70b-versatile", provider="groq")
+
+# Gemini
+IntakeAgent(model="gemini-2.5-flash", provider="gemini")
+```
 
 ---
 
@@ -109,20 +139,35 @@ The IntakeAgent infers degree level from natural language:
 - `"PhD"`, `"doctoral"`, `"dissertation"`, `"candidacy"` → `phd`
 - No hint / `"freshman"` / `"new to programming"` → `undergrad`
 
-The JudgeAgent steers recommendations toward the appropriate course level.
-
 ---
 
 ## Course Catalogue
 
-| ID       | Name                                 | Level     | Semester      |
-| -------- | ------------------------------------ | --------- | ------------- |
-| CSIE1001 | Introduction to Programming          | Undergrad | Fall / Spring |
-| CSIE1002 | Discrete Mathematics                 | Undergrad | Fall          |
-| CSIE2001 | Data Structures                      | Undergrad | Fall / Spring |
-| CSIE5001 | Advanced Machine Learning            | Graduate  | Fall          |
-| CSIE5002 | Distributed Systems                  | Graduate  | Spring        |
-| CSIE6001 | Research Methods in Computer Science | Graduate  | Fall / Spring |
+| ID       | Name                        | Dept | Prerequisites      |
+| -------- | --------------------------- | ---- | ------------------ |
+| CSIE1001 | Introduction to Programming | CSIE | —                  |
+| CSIE1002 | Discrete Mathematics        | CSIE | —                  |
+| CSIE2001 | Data Structures             | CSIE | CSIE1001           |
+| CSIE2002 | Computer Organization       | CSIE | CSIE1001           |
+| CSIE3001 | Algorithms                  | CSIE | CSIE2001, CSIE1002 |
+| CSIE3002 | Operating Systems           | CSIE | CSIE2001, CSIE2002 |
+| CSIE4001 | Machine Learning            | CSIE | CSIE3001, MATH2001 |
+| CSIE4002 | Deep Learning               | CSIE | CSIE4001           |
+| CSIE4003 | Natural Language Processing | CSIE | CSIE4001, MATH2002 |
+| CSIE4004 | Computer Vision             | CSIE | CSIE4001           |
+| MATH2001 | Linear Algebra              | Math | —                  |
+| MATH2002 | Probability and Statistics  | Math | —                  |
+
+---
+
+## Prerequisite Gate
+
+`FusionAgent` splits all retrieved courses into two groups before passing to `JudgeAgent`:
+
+- **Eligible** — all prerequisites in `profile.completed_courses` ✅
+- **Locked** — one or more prerequisites missing, shown with "complete first" chain ✗
+
+The JudgeAgent only sees eligible courses. Locked courses are displayed in the output for guidance but can never be recommended.
 
 ---
 
@@ -132,16 +177,33 @@ The JudgeAgent steers recommendations toward the appropriate course level.
 
 - **Lists** (`completed_courses`, `goals`, `constraints`) are **appended and deduplicated** — old data is never lost.
 - **Scalar fields** (`degree_level`, `academic_year`, `search_query`) are only overwritten if the new message explicitly changes them.
-- **Groq failure on update** — the existing profile is returned unchanged rather than resetting to defaults.
-
-The orchestrator's `run()` returns `(output, profile)` so the REPL carries the profile across turns:
+- **Off-topic guard** only fires on the first message — follow-up messages in an active session always pass through.
+- **LLM failure on update** — the existing profile is returned unchanged rather than resetting to defaults.
 
 ```python
 profile = None
 while True:
     raw = input("You: ").strip()
-    output, profile = orchestrator.run(raw, profile=profile)
+    output, new_profile = orchestrator.run(raw, profile=profile)
+    if new_profile is not None:      # only update on valid turns
+        profile = new_profile
     print(output)
+```
+
+---
+
+## Clarification Flow
+
+If the IntakeAgent cannot confidently map a course name to a valid ID, it sets `needs_clarification=true` instead of guessing. The system prints the full course catalogue and holds the current profile until the user clarifies:
+
+```
+You: I also finished that discrete math thing
+→ [IntakeAgent] Unsure about a course name. Please clarify:
+    CSIE1001: Introduction to Programming
+    CSIE1002: Discrete Mathematics
+    ...
+You: CSIE1002
+→ [Profile updated: completed_courses += CSIE1002]
 ```
 
 ---
@@ -152,12 +214,12 @@ while True:
 
 ```json
 {
-  "degree_level": "master",
-  "academic_year": 5,
-  "completed_courses": ["CSIE2001"],
-  "goals": ["deep learning", "NLP research"],
-  "constraints": ["no early morning classes"],
-  "search_query": "advanced machine learning deep learning NLP transformers graduate research"
+  "academic_year": 3,
+  "completed_courses": ["CSIE1001", "CSIE1002", "CSIE2001"],
+  "goals": ["machine learning"],
+  "constraints": ["Tuesday and Thursday only"],
+  "search_query": "machine learning AI algorithms advanced CSIE NCU",
+  "needs_clarification": false
 }
 ```
 
@@ -165,9 +227,9 @@ while True:
 
 ```json
 {
-  "best_course_id": "CSIE5001",
-  "runner_up_id": "CSIE5002",
-  "reasoning": "CSIE5001 directly matches the student's NLP and deep learning research goals. As a first-year Master's student who has completed Data Structures, they meet the prerequisite and are ready for graduate-level ML content.",
+  "best_course_id": "CSIE4001",
+  "runner_up_id": "CSIE4003",
+  "reasoning": "All prerequisites are met. CSIE4001 Machine Learning directly aligns with the student's AI goals and is the natural next step after completing Algorithms and Linear Algebra.",
   "confidence": "high"
 }
 ```
@@ -177,100 +239,130 @@ while True:
 ## Setup
 
 ```bash
-# Install Python dependencies
 pip install -r requirements.txt
 ```
 
-Set your Groq API key in a `.env` file:
+Create a `.env` file:
 
 ```
-GROQ_API_KEY=your_key_here
+GROQ_API_KEY=your_groq_key_here
+GEMINI_API_KEY=your_gemini_key_here   # only needed if using --provider gemini
 ```
 
-Get a free key at [console.groq.com](https://console.groq.com).
+Get API keys at [console.groq.com](https://console.groq.com) and [aistudio.google.com](https://aistudio.google.com).
 
 ---
 
 ## Running
 
 ```bash
-# Interactive multi-turn REPL
+# Interactive REPL — Groq (default)
 python main.py
 
+# Interactive REPL — Gemini
+python main.py --provider gemini
+
 # Single query
-python main.py -q "I'm a first-year Master's student interested in machine learning"
-python main.py -q "PhD student looking for research methods and academic writing"
-python main.py -q "sophomore, finished CSIE1001, want to study data structures"
+python main.py -q "I just started university, no programming experience"
+python main.py --provider gemini -q "I finished ML, should I go into vision or language?"
 
-# Use a different Groq model
-python main.py --model llama-3.3-70b-versatile -q "I want to learn about graphs and algorithms"
+# Specific model
+python main.py --provider gemini --model gemini-1.5-pro
+
+# List available models for a provider
+python main.py --provider gemini --list-models
+
+# Show current provider/model mid-session
+You: model
 ```
 
-### Example output (graduate student)
+---
+
+## Example Output
 
 ```
-=================================================================
-  NCU Course Finder v2 — Multi-Agent RAG + Judge
-=================================================================
+═════════════════════════════════════════════════════════════════
+  NCU Course Finder v2 — Personalized Recommendation
+═════════════════════════════════════════════════════════════════
 
-── Student Profile ───────────────────────────────────────────
-Degree     : Master's
-Year       : 5
-Completed  : CSIE2001
-Goals      : deep learning; NLP research
+  STUDENT PROFILE
+─────────────────────────────────────────────────────────────────
+Degree     : Undergraduate
+Year       : 3
+Completed  : CSIE1001, CSIE1002, CSIE2001, CSIE3001, MATH2001
+Goals      : machine learning
 Constraints: none
-Query      : advanced machine learning deep learning NLP transformers
+Query      : machine learning AI algorithms advanced
 
-── Retrieval Pipeline ────────────────────────────────────────
-  Method : BM25 (keyword) + Sentence-Transformers (semantic) → RRF fusion
-
-  #1  CSIE5001   [graduate]   RRF=0.032258  BM25 rank=1  Vec rank=1  ◄ JUDGE PICK
-  #2  CSIE6001   [graduate]   RRF=0.016260  BM25 rank=2  Vec rank=2
-  #3  CSIE5002   [graduate]   RRF=0.010989  BM25 rank=3  Vec rank=3
-
-── Judge Verdict ─────────────────────────────────────────────
-  Best Course   : [CSIE5001] Advanced Machine Learning  [GRADUATE]
-  Confidence    : HIGH  ★★★
-  Semester      : Fall
-  Schedule      : Wednesday 14:00–17:00
-  Instructor    : Prof. Huang Zhi-Yuan
-  Prerequisites : CSIE2001
+  ✅  TOP RECOMMENDATION
+─────────────────────────────────────────────────────────────────
+  Course      : [CSIE4001] Machine Learning
+  Instructor  : Prof. Tsai Mei-Ling
+  Semester    : Fall / Spring
+  Schedule    : Tuesday 14:00–17:00
+  Credits     : 3
+  Prereqs     : CSIE3001, MATH2001
+  Confidence  : HIGH  ★★★
 
   Why this course?
-    CSIE5001 directly aligns with the student's deep learning
-    and NLP research goals. As a first-year Master's student
-    who has completed Data Structures, they meet the
-    prerequisite and are ready for graduate-level ML content.
+    All prerequisites are met. CSIE4001 directly aligns with
+    the student's AI and machine learning goals and is the
+    natural next step after completing Algorithms and Linear
+    Algebra.
 
-  Runner-up     : [CSIE6001] Research Methods in CS  [GRADUATE]
-=================================================================
+  🥈 Runner-up  : [CSIE4003] Natural Language Processing
+
+  📋 ALL ELIGIBLE COURSES  (3 found)
+─────────────────────────────────────────────────────────────────
+  #1  [CSIE4001] Machine Learning          RRF=0.03226  ◄ recommended
+  #2  [MATH2002] Probability and Statistics RRF=0.01639
+  #3  [CSIE1002] Discrete Mathematics      RRF=0.01266
+
+  🔒 LOCKED COURSES  (prerequisites not yet met)
+─────────────────────────────────────────────────────────────────
+  ✗  [CSIE4002] Deep Learning
+       Complete first: CSIE4001 (Machine Learning)
+  ✗  [CSIE4003] Natural Language Processing
+       Complete first: CSIE4001 (Machine Learning), MATH2002 (Probability and Statistics)
+═════════════════════════════════════════════════════════════════
 ```
 
-### Example multi-turn session
+---
+
+## Example Multi-Turn Session
 
 ```
-You: I'm a grad student interested in machine learning
-→ [Degree: Master's | Goals: machine learning]
+You: What's the best restaurant near NCU?
+→ Off-topic rejected. No course output.
 
-You: actually I'm doing a PhD, and I also need help with academic writing
-→ [Degree updated to PhD | Goals: machine learning; academic writing]
+You: Sorry, I just started university with zero programming experience.
+→ [Degree: Undergrad | Year: 1 | Recommended: CSIE1001]
 
-You: I've already completed CSIE2001
-→ [Completed: CSIE2001 added — prior goals preserved]
+You: I finished intro programming. What's next?
+→ [Completed: CSIE1001 | Recommended: CSIE2001]
+
+You: I also completed discrete math and data structures.
+→ [Completed: CSIE1001, CSIE1002, CSIE2001 | CSIE3001 now eligible]
+
+You: I only have time on Tuesdays and Thursdays.
+→ [Constraint added | Schedule filter applied to recommendation]
+
+You: I finished ML. Should I go into vision or language?
+→ [Both CSIE4003 and CSIE4004 eligible | Judge reasons between them]
 ```
 
 ---
 
 ## Offline Fallback
 
-All agents degrade gracefully when Groq or Sentence-Transformers is unavailable:
+All agents degrade gracefully when the LLM or Sentence-Transformers is unavailable:
 
-| Agent                         | Fallback behaviour                                                              |
-| ----------------------------- | ------------------------------------------------------------------------------- |
-| **IntakeAgent**               | Heuristic regex — detects year keywords, degree level, course IDs, goal phrases |
-| **VectorAgent**               | In-memory TF-IDF cosine similarity                                              |
-| **JudgeAgent**                | Returns RRF rank #1 with `confidence=low`                                       |
-| **IntakeAgent (update mode)** | Returns existing profile unchanged                                              |
+| Agent                         | Fallback behaviour                                                |
+| ----------------------------- | ----------------------------------------------------------------- |
+| **IntakeAgent**               | Heuristic regex — detects year keywords, degree level, course IDs |
+| **VectorAgent**               | In-memory TF-IDF cosine similarity                                |
+| **JudgeAgent**                | Returns RRF rank #1 with `confidence=low`                         |
+| **IntakeAgent (update mode)** | Returns existing profile unchanged                                |
 
 ---
 
@@ -278,27 +370,54 @@ All agents degrade gracefully when Groq or Sentence-Transformers is unavailable:
 
 ```bash
 pip install pytest
-python -m pytest tests.py -v
+pytest test_demo_scenarios.py -v
+
+# Single test
+pytest test_demo_scenarios.py::test_04_prerequisites_fully_met -vv
 ```
 
-46 tests covering: tool schemas, IntakeAgent (function call + fallback + update/merge), JudgeAgent (function call + fallback + ID validation), BM25Agent, FusionAgent, ResponseAgent, graduate student routing, and full pipeline integration with mocked Groq.
+10 demo scenarios covering: complete beginner, off-topic rejection, prerequisites not met, prerequisites fully met, multi-turn memory, schedule constraints, Judge over RRF, all courses locked, math-track student, and senior specialization.
 
 ---
 
 ## Files
 
 ```
-course_finder_v2/
-├── main.py           # All 6 agents + orchestrator
-├── tests.py          # 46 unit + integration tests
+multiAgent-ncu-courses/
+├── main.py                        # Entry point — REPL + CLI
+├── agents/
+│   ├── OrchestratorAgent.py       # Wires all agents together
+│   ├── IntakeAgent.py             # Agent 1 — profile extraction
+│   ├── BM25.py                    # Agent 2 — keyword retrieval
+│   ├── VectorAgent.py             # Agent 3 — semantic retrieval
+│   ├── FusionAgent.py             # Agent 4 — RRF + prereq gate
+│   ├── JudgeAgent.py              # Agent 5 — best course selection
+│   └── ResponseAgent.py           # Agent 6 — output formatting
+├── models/
+│   ├── Course.py
+│   ├── UserProfile.py             # Profile + update() merge logic
+│   ├── RetrievalResult.py
+│   └── JudgeVerdict.py
+├── function/
+│   └── main.py                    # call_groq_with_tools, call_gemini_with_tools
+├── keywords/
+│   ├── CourseKeywords.py          # Off-topic guard keyword set
+│   └── OffTopicResponse.py
+├── config/
+│   └── main.py                    # Model + provider defaults
+├── test_demo_scenarios.py         # 10 demo test cases
+├── .env                           # API keys (not committed)
 ├── requirements.txt
 └── README.md
 ```
+
+---
 
 ## Requirements
 
 ```
 groq
+google-genai
 rank-bm25
 chromadb
 sentence-transformers
