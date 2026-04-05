@@ -241,25 +241,14 @@ class UserProfile:
     def update(self, new_input: str, args: dict) -> None:
         self.raw_input = new_input
 
-        # ── degree_level + academic_year: always update together ─────
-        new_degree = args.get("degree_level")
-        if new_degree in ("undergrad", "master", "phd"):
-            degree_changed = new_degree != self.degree_level
-            self.degree_level = new_degree  # always accept explicit degree
+        # ── academic_year + degree_level ─────────────────────────────────
+        if "academic_year" in args:
+            new_year = max(1, min(10, int(args["academic_year"])))
+            # allow upgrade AND downgrade — always trust explicit LLM value
+            self.academic_year = new_year
+            self.degree_level  = degree_from_year(new_year)  # always re-derive
 
-            if "academic_year" in args:
-                lo, hi = DEGREE_YEAR_RANGES[self.degree_level]
-                new_year = max(lo, min(hi, int(args["academic_year"])))
-                if degree_changed:
-                    # degree changed → always accept the new year
-                    self.academic_year = new_year
-                else:
-                    # same degree → only increase
-                    if new_year >= self.academic_year:
-                        self.academic_year = new_year
-                    self.degree_level = degree_from_year(self.academic_year)
-
-        # ── completed_courses ─────────────────────────────────────────
+        # ── completed_courses ─────────────────────────────────────────────
         if "completed_courses" in args:
             incoming = [
                 c for c in (args["completed_courses"] or [])
@@ -268,17 +257,16 @@ class UserProfile:
             ]
             self.completed_courses = self.completed_courses + incoming
 
-        # ── goals ─────────────────────────────────────────────────────
+        # ── goals ─────────────────────────────────────────────────────────
         if "goals" in args:
             new_goals = [
                 g.strip() for g in (args["goals"] or [])
                 if g.strip()
                 and not self._is_similar_goal(g.strip(), self.goals)
             ]
-            combined = self.goals + new_goals
-            self.goals = combined[-6:]
+            self.goals = (self.goals + new_goals)[-6:]
 
-        # ── constraints ───────────────────────────────────────────────
+        # ── constraints ───────────────────────────────────────────────────
         if "constraints" in args:
             incoming = args["constraints"] or []
             removals = [
@@ -296,7 +284,7 @@ class UserProfile:
                 if not any(r.lower() in c.lower() for r in removals)
             ] + additions
 
-        # ── search_query ──────────────────────────────────────────────
+        # ── search_query ──────────────────────────────────────────────────
         if "search_query" in args and args["search_query"].strip():
             self.search_query = args["search_query"].strip()
         else:
