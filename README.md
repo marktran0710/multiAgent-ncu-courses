@@ -194,6 +194,10 @@ venv\Scripts\activate.bat
 # Windows (PowerShell)
 python -m venv venv
 venv\Scripts\Activate.ps1
+
+# Another
+python -m venv venv
+./venv/Scripts/Activate
 ```
 
 ### 3. Install dependencies
