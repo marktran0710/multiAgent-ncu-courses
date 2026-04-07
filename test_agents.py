@@ -1,19 +1,7 @@
 """
-Main test file for Multi-Agent Course Finder v2
-Tests have been restructured into smaller files for better organization.
-
-Run individual test files:
-- pytest test_utilities.py -v    # Utilities: tokenize, check_prerequisites, RRF
-- pytest test_agents.py -v      # Agents: BM25, Vector, Fusion, Intake, Judge, Response
-- pytest test_pipeline.py -v    # End-to-end pipeline tests
-- pytest test_models.py -v      # Models: UserProfile, data integrity
-- pytest test_api.py -v         # API endpoints
-
-Or run all: pytest -v
+Tests for agents: BM25Agent, VectorAgent, FusionAgent, IntakeAgent, JudgeAgent, ResponseAgent
+Run: pytest test_agents.py -v
 """
-
-# This file is kept for backward compatibility and can be used to run all tests
-# The actual test implementations are now in the separate files above.
 
 from __future__ import annotations
 
@@ -24,25 +12,22 @@ from typing import Optional
 from unittest.mock import MagicMock, patch
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  Import everything from main (adjust path if needed)
+#  Import agents and related
 # ─────────────────────────────────────────────────────────────────────────────
 from models.Course import Course
 from models.UserProfile import DEGREE_YEAR_RANGES, RAW_COURSES, VALID_COURSE_IDS, UserProfile
 from models.RetrievalResult import RetrievalResult
 from models.JudgeVerdict import JudgeVerdict
 from keywords.CourseKeywords import COURSE_KEYWORDS
-from keywords.OffTopicResponse import OFF_TOPIC_RESPONSE
-from function.main import tokenize, reciprocal_rank_fusion, check_prerequisites_met, call_groq_with_tools
-from fastapi.testclient import TestClient
-import api as api_module
-from api import app
+from function.main import tokenize, reciprocal_rank_fusion, check_prerequisites_met
 from agents.IntakeAgent import IntakeAgent
 from agents.BM25 import BM25Agent
 from agents.VectorAgent import VectorAgent
 from agents.FusionAgent import FusionAgent
 from agents.JudgeAgent import JudgeAgent
 from agents.ResponseAgent import ResponseAgent
-from agents.OrchestratorAgent import CourseFinderOrchestrator
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  Fixtures
 # ─────────────────────────────────────────────────────────────────────────────
@@ -94,114 +79,6 @@ def fusion_agent() -> FusionAgent:
 @pytest.fixture
 def response_agent() -> ResponseAgent:
     return ResponseAgent()
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  1. Utility — tokenize
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestTokenize:
-    def test_lowercase(self):
-        assert tokenize("Hello World") == ["hello", "world"]
-
-    def test_strips_punctuation(self):
-        assert tokenize("data-structures, trees!") == ["data", "structures", "trees"]
-
-    def test_alphanumeric_kept(self):
-        assert "csie1001" in tokenize("CSIE1001 course")
-
-    def test_empty_string(self):
-        assert tokenize("") == []
-
-    def test_numbers_kept(self):
-        assert "3" in tokenize("year 3 student")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  2. Utility — check_prerequisites_met
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestCheckPrerequisites:
-    def test_no_prereqs_always_eligible(self, course_map):
-        course = course_map["CSIE1001"]   # prerequisites = []
-        met, missing = check_prerequisites_met(course, [])
-        assert met is True
-        assert missing == []
-
-    def test_prereqs_met(self, course_map):
-        course = course_map["CSIE2001"]   # requires CSIE1001
-        met, missing = check_prerequisites_met(course, ["CSIE1001"])
-        assert met is True
-        assert missing == []
-
-    def test_prereqs_not_met(self, course_map):
-        course = course_map["CSIE2001"]   # requires CSIE1001
-        met, missing = check_prerequisites_met(course, [])
-        assert met is False
-        assert "CSIE1001" in missing
-
-    def test_partial_prereqs(self, course_map):
-        course = course_map["CSIE3001"]   # requires CSIE2001 + CSIE1002
-        met, missing = check_prerequisites_met(course, ["CSIE2001"])
-        assert met is False
-        assert "CSIE1002" in missing
-        assert "CSIE2001" not in missing
-
-    def test_all_prereqs_met_multi(self, course_map):
-        course = course_map["CSIE3001"]   # requires CSIE2001 + CSIE1002
-        met, missing = check_prerequisites_met(course, ["CSIE2001", "CSIE1002"])
-        assert met is True
-        assert missing == []
-
-    def test_deep_chain(self, course_map):
-        # CSIE4002 (Deep Learning) requires CSIE4001 (Machine Learning)
-        # which itself requires CSIE3001 + MATH2001
-        course = course_map["CSIE4002"]
-        met, missing = check_prerequisites_met(course, [])
-        assert met is False
-        assert "CSIE4001" in missing
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  3. Utility — reciprocal_rank_fusion
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestRRF:
-    def _make_result(self, course_id: str, score: float, all_courses) -> RetrievalResult:
-        course_map = {c.id: Course(**c) for c in RAW_COURSES}
-        return RetrievalResult(course=course_map[course_id], score=score, source="test")
-
-    def test_top_result_appears_in_both_lists_wins(self, all_courses):
-        a = [
-            RetrievalResult(Course(**RAW_COURSES[0]), 0.9, "bm25"),
-            RetrievalResult(Course(**RAW_COURSES[1]), 0.5, "bm25"),
-        ]
-        b = [
-            RetrievalResult(Course(**RAW_COURSES[0]), 0.8, "vector"),
-            RetrievalResult(Course(**RAW_COURSES[2]), 0.4, "vector"),
-        ]
-        fused = reciprocal_rank_fusion(a, b)
-        assert fused[0].course.id == RAW_COURSES[0]["id"]
-
-    def test_output_source_is_fusion(self, all_courses):
-        a = [RetrievalResult(Course(**RAW_COURSES[0]), 0.9, "bm25")]
-        b = [RetrievalResult(Course(**RAW_COURSES[0]), 0.8, "vector")]
-        fused = reciprocal_rank_fusion(a, b)
-        assert all(r.source == "fusion" for r in fused)
-
-    def test_no_duplicates_in_output(self, all_courses):
-        course = Course(**RAW_COURSES[0])
-        a = [RetrievalResult(course, 0.9, "bm25")]
-        b = [RetrievalResult(course, 0.8, "vector")]
-        fused = reciprocal_rank_fusion(a, b)
-        ids = [r.course.id for r in fused]
-        assert len(ids) == len(set(ids))
-
-    def test_scores_are_positive(self, all_courses):
-        a = [RetrievalResult(Course(**c), 0.5, "bm25") for c in RAW_COURSES[:3]]
-        b = [RetrievalResult(Course(**c), 0.5, "vector") for c in RAW_COURSES[2:5]]
-        fused = reciprocal_rank_fusion(a, b)
-        assert all(r.score > 0 for r in fused)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -579,219 +456,3 @@ class TestResponseAgent:
         verdict  = JudgeVerdict("CSIE4001", "Reason.", "medium")
         out = response_agent.process(fresh_profile, eligible, [], eligible, eligible, verdict, course_map)
         assert "STUDENT PROFILE" in out
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  11. End-to-end pipeline (mocked Groq)
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestPipelineEndToEnd:
-    @patch("function.main.call_groq_with_tools")
-    def test_beginner_gets_no_prereq_course(self, mock_groq):
-        """Freshman with no completed courses should only get courses with no prereqs."""
-        mock_groq.side_effect = [
-            # IntakeAgent call
-            {
-                "academic_year": 1,
-                "degree_level": "undergrad",
-                "completed_courses": [],
-                "goals": ["learn programming"],
-                "constraints": [],
-                "search_query": "introduction programming python beginner",
-            },
-            # JudgeAgent call
-            {
-                "best_course_id": "CSIE1001",
-                "runner_up_id": "CSIE1002",
-                "reasoning": "Best starting point for a beginner with no background.",
-                "confidence": "high",
-            },
-        ]
-        orchestrator = CourseFinderOrchestrator()
-        output, profile = orchestrator.run("I am a first year student, want to take a programming course")
-
-        assert profile is not None
-        assert profile.academic_year == 1
-        assert "CSIE1001" in output or "TOP RECOMMENDATION" in output
-
-    @patch("function.main.call_groq_with_tools")
-    def test_off_topic_returns_off_topic_message(self, mock_groq):
-        orchestrator = CourseFinderOrchestrator()
-        output, profile = orchestrator.run("Tell me a joke")
-        assert output == OFF_TOPIC_RESPONSE
-        assert profile is None
-        mock_groq.assert_not_called()
-
-    @patch("function.main.call_groq_with_tools")
-    def test_senior_with_all_prereqs_gets_advanced_course(self, mock_groq):
-        """Student who completed all prereqs should access deep learning."""
-        completed = ["CSIE1001", "CSIE1002", "CSIE2001", "CSIE2002",
-                     "CSIE3001", "MATH2001", "MATH2002", "CSIE4001"]
-        mock_groq.side_effect = [
-            {
-                "academic_year": 4,
-                "degree_level": "undergrad",
-                "completed_courses": completed,
-                "goals": ["deep learning", "computer vision"],
-                "constraints": [],
-                "search_query": "deep learning CNN transformer pytorch",
-            },
-            {
-                "best_course_id": "CSIE4002",
-                "runner_up_id": "CSIE4004",
-                "reasoning": "Deep Learning is the natural next step after Machine Learning.",
-                "confidence": "high",
-            },
-        ]
-        orchestrator = CourseFinderOrchestrator()
-        output, profile = orchestrator.run("I finished ML and want to go deeper into deep learning")
-
-        assert profile is not None
-        assert "CSIE4002" in output   # Deep Learning in output
-
-    @patch("agents.JudgeAgent.call_groq_with_tools")
-    @patch("agents.IntakeAgent.call_groq_with_tools")
-    def test_profile_persists_across_turns(self, mock_intake, mock_judge):
-        """Second turn should update existing profile, not create fresh one."""
-        mock_intake.side_effect = [
-            {
-                "academic_year": 2,
-                "completed_courses": ["CSIE1001"],
-                "goals": ["data structures"],
-                "constraints": [],
-                "search_query": "data structures algorithms trees graphs",
-            },
-            {
-                "academic_year": 2,
-                "completed_courses": ["CSIE1001", "CSIE2001"],
-                "goals": ["algorithms"],
-                "constraints": [],
-                "search_query": "algorithms divide conquer dynamic programming",
-            },
-        ]
-        mock_judge.side_effect = [
-            {
-                "best_course_id": "CSIE2001",
-                "reasoning": "Matches goals.",
-                "confidence": "high",
-            },
-            {
-                "best_course_id": "CSIE3001",
-                "reasoning": "Ready for algorithms now.",
-                "confidence": "high",
-            },
-        ]
-
-        orchestrator = CourseFinderOrchestrator()
-        _, profile = orchestrator.run("I want to learn data structures course")
-        assert profile is not None
-        assert "CSIE1001" in profile.completed_courses
-
-        _, profile2 = orchestrator.run(
-            "Now I want to study algorithms course", profile=profile
-        )
-        assert profile2 is not None
-        assert "CSIE1001" in profile2.completed_courses
-        assert "CSIE2001" in profile2.completed_courses
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  12. UserProfile.describe()
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestUserProfileDescribe:
-    def test_describe_contains_all_fields(self, fresh_profile):
-        desc = fresh_profile.describe()
-        assert "Degree" in desc
-        assert "Year" in desc
-        assert "Completed" in desc
-        assert "Goals" in desc
-        assert "Query" in desc
-
-    def test_describe_empty_completed(self, beginner_profile):
-        desc = beginner_profile.describe()
-        assert "none" in desc.lower()
-
-    def test_degree_label_undergrad(self, fresh_profile):
-        assert "Undergraduate" in fresh_profile.describe()
-
-    def test_degree_label_master(self):
-        p = UserProfile("x", 5, "master", [], [], [], "test")
-        assert "Master" in p.describe()
-
-    def test_degree_label_phd(self):
-        p = UserProfile("x", 7, "phd", [], [], [], "test")
-        assert "PhD" in p.describe()
-
-
-class TestAdminAPIAddCourse:
-    def test_add_course_requires_admin_cookie(self):
-        client = TestClient(app)
-        response = client.post("/admin/add_course", json={"course": {"id": "TEST1001"}})
-        assert response.status_code == 403
-
-    def test_add_course_validates_required_fields(self):
-        client = TestClient(app)
-        response = client.post(
-            "/admin/add_course",
-            json={"course": {"id": "TEST1001", "name": "Demo Course"}},
-            cookies={"admin": "true"},
-        )
-        assert response.status_code == 400
-        assert "Missing required fields" in response.json()["detail"]
-
-    def test_add_course_accepts_full_course_data(self):
-        client = TestClient(app)
-        new_course = {
-            "id": "TEST1001",
-            "name": "Demo Course",
-            "credits": 3,
-            "semester": "Fall",
-            "schedule": "Monday 09:00-11:00",
-            "instructor": "Prof. Demo",
-            "prerequisites": [],
-            "description": "A demo course for testing.",
-            "department": "Test Department",
-            "language": "English",
-            "degree": "undergrad",
-        }
-        response = client.post(
-            "/admin/add_course",
-            json={"course": new_course},
-            cookies={"admin": "true"},
-        )
-        assert response.status_code == 200
-        assert response.json()["success"] is True
-
-        # cleanup added course so other tests remain deterministic
-        RAW_COURSES[:] = [course for course in RAW_COURSES if course.get("id") != "TEST1001"]
-        VALID_COURSE_IDS.discard("TEST1001")
-        api_module.orchestrator = CourseFinderOrchestrator()
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  13. Data integrity — RAW_COURSES
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestRawCourseData:
-    def test_all_prereqs_reference_valid_ids(self):
-        for c in RAW_COURSES:
-            for p in c["prerequisites"]:
-                assert p in VALID_COURSE_IDS, f"{c['id']} has unknown prereq {p}"
-
-    def test_no_duplicate_course_ids(self):
-        ids = [c["id"] for c in RAW_COURSES]
-        assert len(ids) == len(set(ids))
-
-    def test_all_required_fields_present(self):
-        required = {"id", "name", "credits", "semester", "schedule",
-                    "instructor", "prerequisites", "description", "department"}
-        for c in RAW_COURSES:
-            assert required.issubset(c.keys()), f"{c['id']} missing fields"
-
-    def test_credits_are_positive_integers(self):
-        for c in RAW_COURSES:
-            assert isinstance(c["credits"], int) and c["credits"] > 0
-
-    def test_course_full_text_not_empty(self, all_courses):
-        for c in all_courses:
-            assert len(c.full_text()) > 20
