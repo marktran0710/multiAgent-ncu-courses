@@ -8,3 +8,4 @@ class RetrievalResult:
     score: float
     source: str  # "bm25" | "vector" | "fusion"
     missing_prereqs: list[str] = field(default_factory=list)
+    filter_reason: str | None = None

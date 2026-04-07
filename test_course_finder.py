@@ -22,6 +22,9 @@ from models.JudgeVerdict import JudgeVerdict
 from keywords.CourseKeywords import COURSE_KEYWORDS
 from keywords.OffTopicResponse import OFF_TOPIC_RESPONSE
 from function.main import tokenize, reciprocal_rank_fusion, check_prerequisites_met, call_groq_with_tools
+from fastapi.testclient import TestClient
+import api as api_module
+from api import app
 from agents.IntakeAgent import IntakeAgent
 from agents.BM25 import BM25Agent
 from agents.VectorAgent import VectorAgent
@@ -294,6 +297,32 @@ class TestFusionAgent:
         _, locked = fusion_agent.process(bm25, vec, beginner_profile)
         assert len(locked) == 1
         assert "CSIE1001" in locked[0].missing_prereqs
+
+    def test_degree_level_constraints_lock_higher_level_courses(self, fusion_agent, beginner_profile):
+        base_course = Course(**RAW_COURSES[0], degree="master")
+        result = RetrievalResult(base_course, 0.5, "fusion")
+        eligible, locked = fusion_agent.process([result], [result], beginner_profile)
+        assert eligible == []
+        assert len(locked) == 1
+        assert "master" in locked[0].filter_reason.lower()
+
+    def test_language_constraints_filter_non_matching_courses(self, fusion_agent):
+        profile = UserProfile(
+            raw_input="I need an English course",
+            academic_year=3,
+            degree_level="undergrad",
+            completed_courses=["CSIE1001", "CSIE2001", "CSIE1002", "MATH2001"],
+            goals=["natural language processing"],
+            constraints=["English only"],
+            preferred_language="English",
+            search_query="natural language processing English",
+        )
+        course = Course(**RAW_COURSES[0], language="Chinese")
+        result = RetrievalResult(course, 0.5, "fusion")
+        eligible, locked = fusion_agent.process([result], [result], profile)
+        assert eligible == []
+        assert len(locked) == 1
+        assert "english" in locked[0].filter_reason.lower()
 
     def test_empty_input(self, fusion_agent, fresh_profile):
         eligible, locked = fusion_agent.process([], [], fresh_profile)
@@ -681,6 +710,51 @@ class TestUserProfileDescribe:
     def test_degree_label_phd(self):
         p = UserProfile("x", 7, "phd", [], [], [], "test")
         assert "PhD" in p.describe()
+
+
+class TestAdminAPIAddCourse:
+    def test_add_course_requires_admin_cookie(self):
+        client = TestClient(app)
+        response = client.post("/admin/add_course", json={"course": {"id": "TEST1001"}})
+        assert response.status_code == 403
+
+    def test_add_course_validates_required_fields(self):
+        client = TestClient(app)
+        response = client.post(
+            "/admin/add_course",
+            json={"course": {"id": "TEST1001", "name": "Demo Course"}},
+            cookies={"admin": "true"},
+        )
+        assert response.status_code == 400
+        assert "Missing required fields" in response.json()["detail"]
+
+    def test_add_course_accepts_full_course_data(self):
+        client = TestClient(app)
+        new_course = {
+            "id": "TEST1001",
+            "name": "Demo Course",
+            "credits": 3,
+            "semester": "Fall",
+            "schedule": "Monday 09:00-11:00",
+            "instructor": "Prof. Demo",
+            "prerequisites": [],
+            "description": "A demo course for testing.",
+            "department": "Test Department",
+            "language": "English",
+            "degree": "undergrad",
+        }
+        response = client.post(
+            "/admin/add_course",
+            json={"course": new_course},
+            cookies={"admin": "true"},
+        )
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+
+        # cleanup added course so other tests remain deterministic
+        RAW_COURSES[:] = [course for course in RAW_COURSES if course.get("id") != "TEST1001"]
+        VALID_COURSE_IDS.discard("TEST1001")
+        api_module.orchestrator = CourseFinderOrchestrator()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

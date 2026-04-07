@@ -157,6 +157,7 @@ RAW_COURSES = [
             "sentiment analysis, machine translation, and QA systems."
         ),
         "department": "Computer Science and Information Engineering",
+        "language": "English",
     },
     {
         "id": "CSIE4004",
@@ -171,6 +172,7 @@ RAW_COURSES = [
             "segmentation, 3D vision, and video understanding."
         ),
         "department": "Computer Science and Information Engineering",
+        "language": "English",
     },
     {
         "id": "CSIE6001",
@@ -187,6 +189,8 @@ RAW_COURSES = [
             "planning to write a thesis."
         ),
         "department": "Computer Science and Information Engineering",
+        "language": "English",
+        "degree": "master",
     },
 ]
 
@@ -215,6 +219,17 @@ class UserProfile:
     goals: list[str]
     constraints: list[str]
     search_query: str
+    preferred_language: str | None = None
+
+    @staticmethod
+    def _extract_preferred_language(constraints: list[str]) -> str | None:
+        for keyword, normalized in [
+            ("english", "English"),
+            ("chinese", "Chinese"),
+        ]:
+            if any(keyword in constraint.lower() for constraint in constraints):
+                return normalized
+        return None
 
     def _is_similar_goal(self, new_goal: str, existing_goals: list[str], threshold: float = 0.6) -> bool:
         # ↑ must be indented INSIDE the class — 4 spaces
@@ -295,6 +310,7 @@ class UserProfile:
                 c for c in self.constraints
                 if not any(r.lower() in c.lower() for r in removals)
             ] + additions
+            self.preferred_language = self._extract_preferred_language(self.constraints)
 
         # ── search_query ──────────────────────────────────────────────
         if "search_query" in args and args["search_query"].strip():
@@ -327,10 +343,12 @@ class UserProfile:
         completed    = ", ".join(self.completed_courses) if self.completed_courses else "none"
         goals        = "; ".join(self.goals)             if self.goals             else "not specified"
         constraints  = "; ".join(self.constraints)       if self.constraints       else "none"
+        language     = self.preferred_language or "not specified"
 
         return (
             f"Degree     : {degree_label}\n"
             f"Year       : {self.academic_year}\n"
+            f"Language   : {language}\n"
             f"Completed  : {completed}\n"
             f"Goals      : {goals}\n"
             f"Constraints: {constraints}\n"

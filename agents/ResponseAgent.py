@@ -75,6 +75,14 @@ class ResponseAgent:
                 sep2,
                 "  You have not completed the prerequisites for any matched course.",
                 "  Complete the courses listed below first, then try again.",
+                "",
+                "  💡 SUGGESTIONS TO IMPROVE RECOMMENDATIONS",
+                sep2,
+                "  • Tell me about your academic interests or goals (e.g., 'I want to learn AI').",
+                "  • Share courses you've already completed (e.g., 'I've finished CSIE1001 and MATH2001').",
+                "  • Mention any scheduling constraints (e.g., 'Only Tuesdays and Thursdays').",
+                "  • Specify your preferred language (e.g., 'English courses only').",
+                "  • Ask about specific topics (e.g., 'What about machine learning?').",
             ]
 
         # ── Eligible Courses (ranked) ─────────────────────────────────
@@ -90,16 +98,37 @@ class ResponseAgent:
                     f"Vec=#{vec_rank.get(r.course.id,'—')}{marker}"
                 )
 
-        # ── Locked Courses (prereqs not met) ─────────────────────────
+        # ── Locked / Filtered Courses ─────────────────────────
         if locked_results:
-            lines += ["", f"  🔒 LOCKED COURSES  (prerequisites not yet met)", sep2]
+            lines += ["", f"  🔒 LOCKED / NOT RECOMMENDED COURSES", sep2]
             for r in locked_results:
-                missing_names = [
-                    f"{pid} ({course_map[pid].name})" if pid in course_map else pid
-                    for pid in r.missing_prereqs
-                ]
                 lines.append(f"  ✗  [{r.course.id}] {r.course.name}")
-                lines.append(f"       Complete first: {', '.join(missing_names)}")
+                if r.filter_reason:
+                    lines.append(f"       Reason: {r.filter_reason}")
+                if r.missing_prereqs:
+                    missing_names = [
+                        f"{pid} ({course_map[pid].name})" if pid in course_map else pid
+                        for pid in r.missing_prereqs
+                    ]
+                    lines.append(f"       Complete first: {', '.join(missing_names)}")
 
         lines += ["", sep, ""]
         return "\n".join(lines)
+
+    def minimal_response(
+        self,
+        verdict: JudgeVerdict | None,
+        course_map: dict[str, Course],
+    ) -> str:
+        if verdict and verdict.best_course_id in course_map:
+            best = course_map[verdict.best_course_id]
+            return f"I recommend [{best.id}] {best.name} because {verdict.reasoning}"
+        return (
+            "I couldn't find an eligible course based on your current profile. "
+            "To help me give better recommendations, try telling me:\n"
+            "• Your academic interests (e.g., 'I want to learn machine learning')\n"
+            "• Courses you've completed (e.g., 'I've finished CSIE1001')\n"
+            "• Scheduling preferences (e.g., 'Only mornings')\n"
+            "• Language preferences (e.g., 'English courses')\n"
+            "What would you like to share?"
+        )

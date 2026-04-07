@@ -1,31 +1,46 @@
 # Multi-Agent Course Finder v2 — NCU CSIE Midterm
 
-### BM25 + Sentence-Transformers + Groq / Gemini Function Calling (Intake & Judge Agents)
+### BM25 + Sentence-Transformers + Groq / Gemini Function Calling + FastAPI Web UI
 
 ---
 
 ## What's New in v2
 
-| Feature                  | v1                       | v2                                                                          |
-| ------------------------ | ------------------------ | --------------------------------------------------------------------------- |
-| User input parsing       | Simple string validation | **IntakeAgent** — LLM function call extracts structured `UserProfile`       |
-| Final answer             | Full ranked list         | **JudgeAgent** — LLM function call picks single best course with reasoning  |
-| Query used for retrieval | Raw user string          | Synthesised `search_query` from profile                                     |
-| Output                   | Ranked list only         | Ranked list + judge verdict + confidence level                              |
-| LLM backend              | Ollama (local)           | **Groq** (`llama-3.3-70b-versatile`) or **Gemini** (`gemini-2.5-flash`)     |
-| Student support          | Undergrad only           | **Undergrad + Master's + PhD** via `academic_year` mapping                  |
-| Embeddings               | Ollama Llama3            | **Sentence-Transformers** (`all-MiniLM-L6-v2`)                              |
-| Session memory           | Stateless (single turn)  | **Multi-turn** — `UserProfile.update()` merges follow-up input across turns |
-| Course catalogue         | 3 undergrad courses      | **12 courses** across CSIE and Mathematics departments                      |
-| Off-topic guard          | None                     | Keyword-based guard on first message only                                   |
-| Prerequisites            | Not checked              | Hard filter — locked courses shown with "complete first" chain              |
-| Clarification            | None                     | Agent asks user to clarify ambiguous course names                           |
+| Feature                     | v1                       | v2                                                                          |
+| --------------------------- | ------------------------ | --------------------------------------------------------------------------- |
+| User input parsing          | Simple string validation | **IntakeAgent** — LLM function call extracts structured `UserProfile`       |
+| Final answer                | Full ranked list         | **JudgeAgent** — LLM function call picks single best course with reasoning  |
+| Query used for retrieval    | Raw user string          | Synthesised `search_query` from profile                                     |
+| Output                      | Ranked list only         | Ranked list + judge verdict + confidence level                              |
+| LLM backend                 | Ollama (local)           | **Groq** (`llama-3.3-70b-versatile`) or **Gemini** (`gemini-2.5-flash`)     |
+| Student support             | Undergrad only           | **Undergrad + Master's + PhD** via `academic_year` mapping                  |
+| Embeddings                  | Ollama Llama3            | **Sentence-Transformers** (`all-MiniLM-L6-v2`)                              |
+| Session memory              | Stateless (single turn)  | **Multi-turn** — `UserProfile.update()` merges follow-up input across turns |
+| Course catalogue            | 3 undergrad courses      | **13 courses** across CSIE and Mathematics departments                      |
+| Off-topic guard             | None                     | Keyword-based guard on first message only                                   |
+| Prerequisites               | Not checked              | Hard filter — locked courses shown with "complete first" chain              |
+| Clarification               | None                     | Agent asks user to clarify ambiguous course names                           |
+| **Web Interface**           | —                        | **FastAPI backend + HTML/JS frontend** with user chatbot and admin panel    |
+| **Admin Features**          | —                        | Add/edit courses, view logs, manage course catalogue                        |
+| **Language Support**        | —                        | Course language filtering (English/Chinese)                                 |
+| **Degree Filtering**        | —                        | Degree level constraints (undergrad/master/PhD)                             |
+| **Interactive Suggestions** | —                        | Suggestions when no eligible courses found                                  |
 
 ---
 
 ## Architecture
 
 ```
+Web UI (HTML/JS) ←→ FastAPI Backend ←→ Multi-Agent System
+     │                        │
+     ├── User Mode            ├── /chat (minimal response)
+     │   ├── Chatbot          ├── /profile (auto-update)
+     │   └── Profile Sidebar  │
+     └── Admin Mode           ├── /admin/* (login, courses, logs)
+        ├── Course Management ├── POST /admin/add-course (validation)
+        ├── Log Viewer        └── GET /admin/logs (full details)
+        └── Course Listing
+
 User free-text input  (single-turn or multi-turn follow-up)
         │
         ▼
@@ -41,7 +56,7 @@ User free-text input  (single-turn or multi-turn follow-up)
 │  Output: UserProfile {                                  │
 │    degree_level, academic_year,                         │
 │    completed_courses, goals,                            │
-│    constraints, search_query                            │
+│    constraints, search_query, preferred_language        │
 │  }                                                      │
 └──────────────────┬──────────────────────────────────────┘
                    │  profile.search_query
@@ -59,6 +74,8 @@ User free-text input  (single-turn or multi-turn follow-up)
            │  FusionAgent     │
            │  RRF (k=60)      │
            │  + prereq filter │
+           │  + degree filter │
+           │  + language filter│
            └────────┬─────────┘
                     │  eligible / locked split
                     ▼
@@ -79,7 +96,9 @@ User free-text input  (single-turn or multi-turn follow-up)
                    ▼
           ┌─────────────────┐
           │  ResponseAgent  │
-          │  Final output   │
+          │  Full output    │
+          │  + suggestions  │
+          │  Minimal output │
           │  eligible list  │
           │  locked list    │
           └─────────────────┘
@@ -89,25 +108,35 @@ User free-text input  (single-turn or multi-turn follow-up)
 
 ## Agents
 
-| #   | Agent             | Role                                                         | LLM call?                      |
-| --- | ----------------- | ------------------------------------------------------------ | ------------------------------ |
-| 1   | **IntakeAgent**   | Extracts / updates structured `UserProfile` from free text   | ✅ `extract_user_profile` tool |
-| 2   | **BM25Agent**     | Keyword retrieval with BM25Okapi (top-6)                     | —                              |
-| 3   | **VectorAgent**   | Semantic retrieval with Sentence-Transformers + ChromaDB     | —                              |
-| 4   | **FusionAgent**   | Reciprocal Rank Fusion (RRF, k=60) + prerequisite gate       | —                              |
-| 5   | **JudgeAgent**    | Picks single best course with reasoning, hallucination guard | ✅ `select_best_course` tool   |
-| 6   | **ResponseAgent** | Formats eligible list, locked list, and judge verdict        | —                              |
+| #   | Agent                 | Role                                                                                | LLM call?                      |
+| --- | --------------------- | ----------------------------------------------------------------------------------- | ------------------------------ |
+| 1   | **IntakeAgent**       | Extracts / updates structured `UserProfile` from free text                          | ✅ `extract_user_profile` tool |
+| 2   | **BM25Agent**         | Keyword retrieval with BM25Okapi (top-6)                                            | —                              |
+| 3   | **VectorAgent**       | Semantic retrieval with Sentence-Transformers + ChromaDB                            | —                              |
+| 4   | **FusionAgent**       | Reciprocal Rank Fusion (RRF, k=60) + prerequisite gate + degree/language filters    | —                              |
+| 5   | **JudgeAgent**        | Picks single best course with reasoning, hallucination guard                        | ✅ `select_best_course` tool   |
+| 6   | **ResponseAgent**     | Formats eligible list, locked list, and judge verdict + suggestions when no courses | —                              |
+| 7   | **OrchestratorAgent** | Coordinates all agents, handles user/admin modes                                    | —                              |
 
 ---
 
-## Multi-Provider LLM Support
+## Web Interface
 
-Both Groq and Gemini are fully supported. The provider is selected at runtime via `--provider`.
+The application includes a modern web UI built with FastAPI backend and vanilla HTML/JS frontend.
 
-| Provider | Default model             | Notes                     |
-| -------- | ------------------------- | ------------------------- |
-| `groq`   | `llama-3.3-70b-versatile` | Default provider          |
-| `gemini` | `gemini-2.5-flash`        | Requires `GEMINI_API_KEY` |
+### User Mode
+
+- **Chatbot Interface**: Conversational course recommendations
+- **Profile Sidebar**: Auto-updating user profile display
+- **Minimal Responses**: Concise recommendations for users
+- **Interactive Suggestions**: Helpful prompts when no courses are found
+
+### Admin Mode
+
+- **Login**: Password-protected access (default: admin123)
+- **Course Management**: Add/edit courses with validation
+- **Course Listing**: View all courses in the catalogue
+- **Log Viewer**: Inspect full conversation logs and backend details
 
 ---
 
@@ -135,20 +164,21 @@ The LLM maps natural language to the correct year:
 
 ## Course Catalogue
 
-| ID       | Name                        | Dept | Prerequisites      |
-| -------- | --------------------------- | ---- | ------------------ |
-| CSIE1001 | Introduction to Programming | CSIE | —                  |
-| CSIE1002 | Discrete Mathematics        | CSIE | —                  |
-| CSIE2001 | Data Structures             | CSIE | CSIE1001           |
-| CSIE2002 | Computer Organization       | CSIE | CSIE1001           |
-| CSIE3001 | Algorithms                  | CSIE | CSIE2001, CSIE1002 |
-| CSIE3002 | Operating Systems           | CSIE | CSIE2001, CSIE2002 |
-| CSIE4001 | Machine Learning            | CSIE | CSIE3001, MATH2001 |
-| CSIE4002 | Deep Learning               | CSIE | CSIE4001           |
-| CSIE4003 | Natural Language Processing | CSIE | CSIE4001, MATH2002 |
-| CSIE4004 | Computer Vision             | CSIE | CSIE4001           |
-| MATH2001 | Linear Algebra              | Math | —                  |
-| MATH2002 | Probability and Statistics  | Math | —                  |
+| ID       | Name                        | Dept | Prerequisites      | Language | Degree |
+| -------- | --------------------------- | ---- | ------------------ | -------- | ------ |
+| CSIE1001 | Introduction to Programming | CSIE | —                  | —        | —      |
+| CSIE1002 | Discrete Mathematics        | CSIE | —                  | —        | —      |
+| CSIE2001 | Data Structures             | CSIE | CSIE1001           | —        | —      |
+| CSIE2002 | Computer Organization       | CSIE | CSIE1001           | —        | —      |
+| CSIE3001 | Algorithms                  | CSIE | CSIE2001, CSIE1002 | —        | —      |
+| CSIE3002 | Operating Systems           | CSIE | CSIE2001, CSIE2002 | —        | —      |
+| CSIE4001 | Machine Learning            | CSIE | CSIE3001, MATH2001 | —        | —      |
+| CSIE4002 | Deep Learning               | CSIE | CSIE4001           | —        | —      |
+| CSIE4003 | Natural Language Processing | CSIE | CSIE4001, MATH2002 | English  | —      |
+| CSIE4004 | Computer Vision             | CSIE | CSIE4001           | English  | —      |
+| CSIE6001 | Research Methods in CS      | CSIE | —                  | English  | master |
+| MATH2001 | Linear Algebra              | Math | —                  | —        | —      |
+| MATH2002 | Probability and Statistics  | Math | —                  | —        | —      |
 
 ---
 
@@ -156,8 +186,8 @@ The LLM maps natural language to the correct year:
 
 `FusionAgent` splits all retrieved courses into two groups before passing to `JudgeAgent`:
 
-- **Eligible** — all prerequisites met ✅ → passed to JudgeAgent
-- **Locked** — one or more prerequisites missing 🔒 → shown in output with "complete first" chain, never recommended
+- **Eligible** — all prerequisites met ✅ + degree level compatible + language matches → passed to JudgeAgent
+- **Locked** — one or more prerequisites missing 🔒 or degree too high or language mismatch → shown in output with reason, never recommended
 
 ---
 
@@ -232,6 +262,18 @@ Get your keys at:
 
 ## Running
 
+### Web Interface (Recommended)
+
+```bash
+# Start the FastAPI server
+python api.py
+
+# Open browser to http://localhost:8000
+# Admin login: admin123
+```
+
+### Command Line Interface
+
 ```bash
 # Interactive REPL — Groq (default)
 python main.py
@@ -304,6 +346,13 @@ Query      : machine learning AI algorithms advanced
 
 ## Example Multi-Turn Session
 
+### Web Interface
+
+- Visit http://localhost:8000 for user mode
+- Visit http://localhost:8000/admin for admin mode (login: admin123)
+
+### CLI Example
+
 ```
 You: What's the best restaurant near NCU?
 → Off-topic rejected. No course output.
@@ -322,18 +371,23 @@ You: I only have time on Tuesdays and Thursdays.
 
 You: I finished ML. Should I go into vision or language?
 → [Both CSIE4003 and CSIE4004 eligible | Judge reasons between them]
+
+You: I want courses in French.
+→ No eligible courses found. Suggestions provided for better queries.
 ```
 
 ---
 
-## Offline Fallback
+## Interactive Suggestions
 
-| Agent                         | Fallback behaviour                                                |
-| ----------------------------- | ----------------------------------------------------------------- |
-| **IntakeAgent**               | Heuristic regex — detects year keywords, degree level, course IDs |
-| **VectorAgent**               | In-memory TF-IDF cosine similarity                                |
-| **JudgeAgent**                | Returns RRF rank #1 with `confidence=low`                         |
-| **IntakeAgent (update mode)** | Returns existing profile unchanged                                |
+When no eligible courses are found based on the user's profile and constraints, the system provides helpful suggestions to guide the user toward better queries:
+
+- Academic interests (e.g., "I want to learn machine learning")
+- Completed courses (e.g., "I've finished CSIE1001")
+- Scheduling preferences (e.g., "Only mornings")
+- Language preferences (e.g., "English courses")
+
+This enhances user engagement and makes the chatbot more conversational.
 
 ---
 
@@ -354,30 +408,35 @@ pytest test_demo_scenarios.py::test_04_prerequisites_fully_met -vv
 
 ```
 multiAgent-ncu-courses/
-├── main.py                        # Entry point — REPL + CLI
+├── api.py                        # FastAPI web server
+├── main.py                       # CLI entry point — REPL + CLI
+├── static/
+│   ├── index.html                # User mode UI
+│   └── admin.html                # Admin mode UI
 ├── agents/
-│   ├── OrchestratorAgent.py       # Wires all agents together
-│   ├── IntakeAgent.py             # Agent 1 — profile extraction
-│   ├── BM25.py                    # Agent 2 — keyword retrieval
-│   ├── VectorAgent.py             # Agent 3 — semantic retrieval
-│   ├── FusionAgent.py             # Agent 4 — RRF + prereq gate
-│   ├── JudgeAgent.py              # Agent 5 — best course selection
-│   └── ResponseAgent.py           # Agent 6 — output formatting
+│   ├── OrchestratorAgent.py      # Wires all agents together
+│   ├── IntakeAgent.py            # Agent 1 — profile extraction
+│   ├── BM25.py                   # Agent 2 — keyword retrieval
+│   ├── VectorAgent.py            # Agent 3 — semantic retrieval
+│   ├── FusionAgent.py            # Agent 4 — RRF + filters
+│   ├── JudgeAgent.py             # Agent 5 — best course selection
+│   └── ResponseAgent.py          # Agent 6 — output formatting
 ├── models/
 │   ├── Course.py
-│   ├── UserProfile.py             # Profile + update() + degree_from_year()
+│   ├── UserProfile.py            # Profile + update() + degree_from_year()
 │   ├── RetrievalResult.py
 │   └── JudgeVerdict.py
 ├── function/
-│   └── main.py                    # call_groq_with_tools, call_gemini_with_tools
+│   └── main.py                   # call_groq_with_tools, call_gemini_with_tools
 ├── keywords/
-│   ├── CourseKeywords.py          # Off-topic guard keyword set
+│   ├── CourseKeywords.py         # Off-topic guard keyword set
 │   └── OffTopicResponse.py
 ├── config/
-│   └── main.py                    # Model + provider defaults
-├── test_demo_scenarios.py         # 10 demo test cases
-├── .env.example                   # API key template (safe to commit)
-├── .env                           # Your actual keys (never commit)
+│   └── main.py                   # Model + provider defaults
+├── test_course_finder.py         # Additional tests
+├── test_demo_scenarios.py        # 10 demo test cases
+├── .env.example                  # API key template (safe to commit)
+├── .env                          # Your actual keys (never commit)
 ├── .gitignore
 ├── requirements.txt
 └── README.md

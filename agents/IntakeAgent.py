@@ -155,8 +155,8 @@ class IntakeAgent:
         model: str | None = None,          # kept for backward compat, ignored if set in __init__
         existing_profile: Optional[UserProfile] = None,
     ) -> UserProfile | None:
-        # skip off-topic guard on follow-up turns
-        if existing_profile is None and not self._is_on_topic(raw_input):
+        # reject off-topic input unless it includes course-related intent
+        if not self._is_on_topic(raw_input):
             print(f"\n[{self.name}] Off-topic input rejected.")
             return None
 
@@ -231,7 +231,12 @@ class IntakeAgent:
     def _build_profile(self, raw_input: str, args: dict) -> UserProfile:
 
         year = max(1, min(10, int(args.get("academic_year", 1))))
-        degree_level = degree_from_year(year)
+        degree_level = args.get("degree_level")
+        if degree_level in ("undergrad", "master", "phd"):
+            lo, hi = DEGREE_YEAR_RANGES[degree_level]
+            year = max(lo, min(hi, year))
+        else:
+            degree_level = degree_from_year(year)
 
         completed = [c for c in (args.get("completed_courses") or []) if c in VALID_COURSE_IDS]
 
@@ -242,5 +247,6 @@ class IntakeAgent:
             completed_courses=completed,
             goals=args.get("goals") or [],
             constraints=args.get("constraints") or [],
+            preferred_language=UserProfile._extract_preferred_language(args.get("constraints") or []),
             search_query=args.get("search_query", raw_input).strip(),
         )

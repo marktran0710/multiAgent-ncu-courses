@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - NCU Course Finder</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .login-form {
+            max-width: 300px;
+            margin: 0 auto;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .logs {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: #f8f9fa;
+        }
+
+        .log-entry {
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #eee;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Admin Panel - NCU Course Finder</h1>
+
+        <div id="loginSection" class="section">
+            <h2>Login</h2>
+            <div class="login-form">
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password">
+                </div>
+                <button onclick="login()">Login</button>
+            </div>
+        </div>
+
+        <div id="adminSection" class="section hidden">
+            <h2>Add Course</h2>
+            <div class="form-group">
+                <label for="courseId">Course ID:</label>
+                <input type="text" id="courseId" placeholder="e.g., CSIE5001">
+            </div>
+            <div class="form-group">
+                <label for="courseName">Course Name:</label>
+                <input type="text" id="courseName" placeholder="e.g., Advanced Machine Learning">
+            </div>
+            <div class="form-group">
+                <label for="credits">Credits:</label>
+                <input type="number" id="credits" placeholder="3">
+            </div>
+            <div class="form-group">
+                <label for="semester">Semester:</label>
+                <input type="text" id="semester" placeholder="Fall / Spring">
+            </div>
+            <div class="form-group">
+                <label for="schedule">Schedule:</label>
+                <input type="text" id="schedule" placeholder="Monday 10:00–12:00">
+            </div>
+            <div class="form-group">
+                <label for="instructor">Instructor:</label>
+                <input type="text" id="instructor" placeholder="Prof. Example">
+            </div>
+            <div class="form-group">
+                <label for="prerequisites">Prerequisites (comma-separated):</label>
+                <input type="text" id="prerequisites" placeholder="CSIE1001, MATH2001">
+            </div>
+            <div class="form-group">
+                <label for="description">Description:</label>
+                <textarea id="description" rows="3" placeholder="Course description..."></textarea>
+            </div>
+            <div class="form-group">
+                <label for="department">Department:</label>
+                <input type="text" id="department" placeholder="Computer Science and Information Engineering">
+            </div>
+            <div class="form-group">
+                <label for="language">Language:</label>
+                <select id="language">
+                    <option value="Chinese">Chinese</option>
+                    <option value="English">English</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="degree">Degree Level:</label>
+                <select id="degree">
+                    <option value="undergrad">Undergrad</option>
+                    <option value="master">Master</option>
+                    <option value="phd">PhD</option>
+                </select>
+            </div>
+            <button onclick="addCourse()">Add Course</button>
+
+            <h2>Update Data</h2>
+            <button onclick="updateData()">Rerun RAG</button>
+
+            <h2>Conversation Logs</h2>
+            <button onclick="loadLogs()">Load Logs</button>
+            <div class="logs" id="logsContainer"></div>
+
+            <h2>View All Courses</h2>
+            <button onclick="loadCourses()">Load Courses</button>
+            <div class="logs" id="coursesContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        async function login() {
+            const password = document.getElementById('password').value;
+            try {
+                const response = await fetch('/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                if (response.ok) {
+                    document.getElementById('loginSection').classList.add('hidden');
+                    document.getElementById('adminSection').classList.remove('hidden');
+                } else {
+                    alert('Invalid password');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function addCourse() {
+            const course = {
+                id: document.getElementById('courseId').value.trim(),
+                name: document.getElementById('courseName').value.trim(),
+                credits: parseInt(document.getElementById('credits').value, 10),
+                semester: document.getElementById('semester').value.trim(),
+                schedule: document.getElementById('schedule').value.trim(),
+                instructor: document.getElementById('instructor').value.trim(),
+                prerequisites: document.getElementById('prerequisites').value.split(',').map(s => s.trim()).filter(s => s),
+                description: document.getElementById('description').value.trim(),
+                department: document.getElementById('department').value.trim(),
+                language: document.getElementById('language').value,
+                degree: document.getElementById('degree').value,
+            };
+
+            if (!course.id || !course.name || !course.semester || !course.schedule || !course.instructor || !course.description || !course.department || Number.isNaN(course.credits) || course.credits <= 0) {
+                alert('Please fill in all required course fields with valid values.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/admin/add_course', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ course })
+                });
+                if (response.ok) {
+                    alert('Course added successfully');
+                    // Clear form
+                    document.querySelectorAll('input, textarea').forEach(el => el.value = '');
+                } else {
+                    const error = await response.json();
+                    alert('Error: ' + error.detail);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function updateData() {
+            try {
+                const response = await fetch('/admin/update_data', { method: 'POST' });
+                if (response.ok) {
+                    alert('Data updated successfully');
+                } else {
+                    alert('Error updating data');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function loadLogs() {
+            try {
+                const response = await fetch('/admin/logs');
+                const logs = await response.json();
+                const container = document.getElementById('logsContainer');
+                container.innerHTML = logs.map(log => `
+                    <div class="log-entry">
+                        <strong>Session:</strong> ${log.session_id}<br>
+                        <strong>User:</strong> ${log.user_message}<br>
+                        <strong>Bot:</strong> ${log.bot_response}<br>
+                        <strong>Profile:</strong> ${log.profile ? JSON.stringify(log.profile, null, 2) : 'None'}<br>
+                        <strong>Eligible:</strong> ${log.eligible ? log.eligible.map(course => course.id).join(', ') : '[]'}<br>
+                        <strong>Locked:</strong> ${log.locked ? log.locked.map(course => course.id).join(', ') : '[]'}<br>
+                        <details style="margin-top:10px;"><summary>Full backend output</summary><pre>${log.full_output ? log.full_output.replace(/</g, '&lt;') : 'None'}</pre></details>
+                    </div>
+                `).join('');
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function loadCourses() {
+            try {
+                const response = await fetch('/admin/courses');
+                const courses = await response.json();
+                const container = document.getElementById('coursesContainer');
+                container.innerHTML = courses.map(course => `
+                    <div class="log-entry">
+                        <strong>${course.id} - ${course.name}</strong><br>
+                        <strong>Department:</strong> ${course.department}<br>
+                        <strong>Credits:</strong> ${course.credits}<br>
+                        <strong>Semester:</strong> ${course.semester}<br>
+                        <strong>Language:</strong> ${course.language || 'Chinese'}<br>
+                        <strong>Degree:</strong> ${course.degree || 'undergrad'}<br>
+                        <strong>Schedule:</strong> ${course.schedule}<br>
+                        <strong>Instructor:</strong> ${course.instructor}<br>
+                        <strong>Prerequisites:</strong> ${course.prerequisites.join(', ') || 'None'}<br>
+                        <strong>Description:</strong> ${course.description}
+                    </div>
+                `).join('');
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+
+</html>

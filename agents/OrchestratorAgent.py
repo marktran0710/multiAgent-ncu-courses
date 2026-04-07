@@ -45,11 +45,15 @@ class CourseFinderOrchestrator:
         self.fusion_agent   = FusionAgent()
         self.response_agent = ResponseAgent()
 
-    def run(self, raw_input: str, profile: Optional[UserProfile] = None) -> tuple[str, UserProfile | None]:
+    def _run_pipeline(
+        self,
+        raw_input: str,
+        profile: Optional[UserProfile] = None,
+    ) -> tuple[str, str, UserProfile | None, dict]:
             # 1. Update/Create Student Profile
             profile = self.intake_agent.process(raw_input, model=self.model, existing_profile=profile)
             if profile is None:
-                return OFF_TOPIC_RESPONSE, None
+                return OFF_TOPIC_RESPONSE, OFF_TOPIC_RESPONSE, None, {}
 
             # 2. Parallel Retrieval
             bm25_results   = self.bm25_agent.process(profile, top_k=6)
@@ -64,13 +68,12 @@ class CourseFinderOrchestrator:
             # CRITICAL: We only pass 'eligible' courses to the judge.
             # This prevents recommending MATH2002 if the student already passed it.
             if not eligible:
-                # Fallback if no courses are eligible based on the current search
                 verdict = None 
             else:
                 verdict = self.judge_agent.process(profile, eligible)
 
             # 5. Final Formatting
-            output = self.response_agent.process(
+            full_output = self.response_agent.process(
                 profile=profile,
                 eligible_results=eligible,
                 locked_results=locked,
@@ -79,4 +82,46 @@ class CourseFinderOrchestrator:
                 verdict=verdict,
                 course_map=self.course_map,
             )
-            return output, profile
+            user_output = self.response_agent.minimal_response(verdict, self.course_map)
+            details = {
+                "eligible": [
+                    {
+                        "id": r.course.id,
+                        "name": r.course.name,
+                        "score": r.score,
+                        "source": r.source,
+                    }
+                    for r in eligible
+                ],
+                "locked": [
+                    {
+                        "id": r.course.id,
+                        "name": r.course.name,
+                        "score": r.score,
+                        "source": r.source,
+                        "missing_prereqs": r.missing_prereqs,
+                        "filter_reason": r.filter_reason,
+                    }
+                    for r in locked
+                ],
+                "verdict": {
+                    "best_course_id": verdict.best_course_id if verdict else None,
+                    "runner_up_id": verdict.runner_up_id if verdict else None,
+                    "reasoning": verdict.reasoning if verdict else None,
+                    "confidence": verdict.confidence if verdict else None,
+                },
+                "full_output": full_output,
+            }
+            return full_output, user_output, profile, details
+
+    def run(self, raw_input: str, profile: Optional[UserProfile] = None) -> tuple[str, UserProfile | None]:
+            full_output, _, profile, _ = self._run_pipeline(raw_input, profile)
+            return full_output, profile
+
+    def run_user(
+        self,
+        raw_input: str,
+        profile: Optional[UserProfile] = None,
+    ) -> tuple[str, UserProfile | None, dict]:
+            _, user_output, profile, details = self._run_pipeline(raw_input, profile)
+            return user_output, profile, details
