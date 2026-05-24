@@ -31,77 +31,82 @@
 ## Architecture
 
 ```
-Web UI (HTML/JS) ←→ FastAPI Backend ←→ Multi-Agent System
-     │                        │
-     ├── User Mode            ├── /chat (minimal response)
-     │   ├── Chatbot          ├── /profile (auto-update)
-     │   └── Profile Sidebar  │
-     └── Admin Mode           ├── /admin/* (login, courses, logs)
-        ├── Course Management ├── POST /admin/add-course (validation)
-        ├── Log Viewer        └── GET /admin/logs (full details)
-        └── Course Listing
+Web UI (HTML/JS)
+  |
+  v
+FastAPI Backend
+  |-- User Mode
+  |     |-- /chat        minimal response
+  |     |-- /profile     auto-updated profile
+  |     `-- Profile Sidebar
+  |
+  `-- Admin Mode
+        |-- /admin/*                login, courses, logs
+        |-- POST /admin/add_course  course validation
+        |-- GET /admin/logs         full conversation details
+        `-- Course Listing
 
-User free-text input  (single-turn or multi-turn follow-up)
-        │
-        ▼
-┌─────────────────────────────────────────────────────────┐
-│  IntakeAgent  (Groq or Gemini function call)            │
-│                                                         │
-│  Tool: extract_user_profile                             │
-│  First turn  → builds fresh UserProfile                 │
-│  Follow-up   → merges changes via UserProfile.update()  │
-│  Off-topic   → rejected on first message only           │
-│  Ambiguous   → asks user to clarify course name         │
-│                                                         │
-│  Output: UserProfile {                                  │
-│    degree_level, academic_year,                         │
-│    completed_courses, goals,                            │
-│    constraints, search_query, preferred_language        │
-│  }                                                      │
-└──────────────────┬──────────────────────────────────────┘
-                   │  profile.search_query
-          ┌────────┴────────┐
-          ▼                 ▼
-   ┌────────────┐    ┌──────────────────────────┐
-   │ BM25Agent  │    │  VectorAgent             │
-   │ (keyword)  │    │  Sentence-Transformers   │
-   │            │    │  + ChromaDB              │
-   └─────┬──────┘    └────────┬─────────────────┘
-         │                    │
-         └──────────┬─────────┘
-                    ▼
-           ┌──────────────────┐
-           │  FusionAgent     │
-           │  RRF (k=60)      │
-           │  + prereq filter │
-           │  + degree filter │
-           │  + language filter│
-           └────────┬─────────┘
-                    │  eligible / locked split
-                    ▼
-┌─────────────────────────────────────────────────────────┐
-│  JudgeAgent  (Groq or Gemini function call)             │
-│                                                         │
-│  Tool: select_best_course                               │
-│  Input: UserProfile + RRF-ranked eligible candidates    │
-│  Hallucination guard: scans top-3 if ID invalid         │
-│  Schedule constraints treated as hard filter            │
-│  Never recommends already-completed courses             │
-│                                                         │
-│  Output: JudgeVerdict {                                 │
-│    best_course_id, runner_up_id,                        │
-│    reasoning, confidence                                │
-│  }                                                      │
-└──────────────────┬──────────────────────────────────────┘
-                   ▼
-          ┌─────────────────┐
-          │  ResponseAgent  │
-          │  Full output    │
-          │  + suggestions  │
-          │  Minimal output │
-          │  eligible list  │
-          │  locked list    │
-          └─────────────────┘
+User free-text input (single-turn or multi-turn follow-up)
+  |
+  v
++------------------------------------------------------------+
+| IntakeAgent (Groq or Gemini function call)                 |
+| Tool: extract_user_profile                                 |
+| First turn: builds fresh UserProfile                       |
+| Follow-up: merges changes via UserProfile.update()         |
+| Off-topic: rejected on first message only                  |
+| Ambiguous: asks user to clarify course name                |
+| Output: degree_level, academic_year, completed_courses,    |
+|         goals, constraints, search_query, language         |
++------------------------------------------------------------+
+  |
+  v
+profile.search_query
+  |
+  v
++------------------------------------------------------------+
+| Query RAG Retrieval: 8 ways                                |
+|                                                            |
+| 1. BM25Agent                     keyword retrieval         |
+| 2. VectorAgent                   Sentence-Transformers     |
+|                                  + ChromaDB                |
+| 3. BM25 + Multi Match (MQ)       keyword hybrid            |
+| 4. BM25 + Best Fields (BF)       keyword + field aware     |
+| 5. KNN + Multi Match             dense semantic            |
+| 6. KNN + Best Fields             dense semantic + field    |
+| 7. Sparse Encoder + Multi Match  sparse semantic           |
+| 8. Sparse Encoder + Best Fields  strongest method          |
++------------------------------------------------------------+
+  |
+  v
++------------------------------------------------------------+
+| FusionAgent                                                |
+| Weighted RRF over all 8 retrieval ways                     |
+| + prerequisite filter                                      |
+| + degree filter                                            |
+| + language filter                                          |
+| Output: eligible / locked split                            |
++------------------------------------------------------------+
+  |
+  v
++------------------------------------------------------------+
+| JudgeAgent (Groq or Gemini function call)                  |
+| Tool: select_best_course                                   |
+| Input: UserProfile + RRF-ranked eligible candidates        |
+| Hallucination guard: scans top-3 if ID invalid             |
+| Schedule constraints treated as hard filter                |
+| Never recommends already-completed courses                 |
+| Output: best_course_id, runner_up_id, reasoning, confidence|
++------------------------------------------------------------+
+  |
+  v
++------------------------------------------------------------+
+| ResponseAgent                                              |
+| Full output + suggestions                                  |
+| Minimal output                                             |
+| Eligible list                                              |
+| Locked list                                                |
++------------------------------------------------------------+
 ```
 
 ---
@@ -113,10 +118,28 @@ User free-text input  (single-turn or multi-turn follow-up)
 | 1   | **IntakeAgent**       | Extracts / updates structured `UserProfile` from free text                          | ✅ `extract_user_profile` tool |
 | 2   | **BM25Agent**         | Keyword retrieval with BM25Okapi (top-6)                                            | —                              |
 | 3   | **VectorAgent**       | Semantic retrieval with Sentence-Transformers + ChromaDB                            | —                              |
-| 4   | **FusionAgent**       | Reciprocal Rank Fusion (RRF, k=60) + prerequisite gate + degree/language filters    | —                              |
-| 5   | **JudgeAgent**        | Picks single best course with reasoning, hallucination guard                        | ✅ `select_best_course` tool   |
-| 6   | **ResponseAgent**     | Formats eligible list, locked list, and judge verdict + suggestions when no courses | —                              |
-| 7   | **OrchestratorAgent** | Coordinates all agents, handles user/admin modes                                    | —                              |
+| 4   | **QueryRAGAgent**     | Expands retrieval to 8 ways: BM25, vector, BM25 MQ/BF, KNN MQ/BF, sparse MQ/BF      | —                              |
+| 5   | **FusionAgent**       | Weighted RRF over all 8 retrieval ways + prerequisite gate + degree/language filters| —                              |
+| 6   | **JudgeAgent**        | Picks single best course with reasoning, hallucination guard                        | ✅ `select_best_course` tool   |
+| 7   | **ResponseAgent**     | Formats eligible list, locked list, and judge verdict + suggestions when no courses | —                              |
+| 8   | **OrchestratorAgent** | Coordinates all agents, handles user/admin modes                                    | —                              |
+
+---
+
+### Query RAG Retrieval
+
+The full pipeline now fuses 8 retrieval ways: the original `BM25Agent` and `VectorAgent`, plus six query-time strategies from `QueryRAGAgent`:
+
+| Strategy | Use |
+| --- | --- |
+| BM25Agent | keyword retrieval |
+| VectorAgent | Sentence-Transformers + ChromaDB |
+| BM25 + Multi Match (MQ) | keyword hybrid |
+| BM25 + Best Fields (BF) | keyword + field aware |
+| KNN + Multi Match | dense semantic |
+| KNN + Best Fields | dense semantic + best field |
+| Sparse Encoder + Multi Match | sparse semantic |
+| Sparse Encoder + Best Fields | strongest method |
 
 ---
 
@@ -418,9 +441,10 @@ multiAgent-ncu-courses/
 │   ├── IntakeAgent.py            # Agent 1 — profile extraction
 │   ├── BM25.py                   # Agent 2 — keyword retrieval
 │   ├── VectorAgent.py            # Agent 3 — semantic retrieval
-│   ├── FusionAgent.py            # Agent 4 — RRF + filters
-│   ├── JudgeAgent.py             # Agent 5 — best course selection
-│   └── ResponseAgent.py          # Agent 6 — output formatting
+│   ├── QueryRAGAgent.py          # Agent 4 — 8-way query RAG retrieval
+│   ├── FusionAgent.py            # Agent 5 — RRF + filters
+│   ├── JudgeAgent.py             # Agent 6 — best course selection
+│   └── ResponseAgent.py          # Agent 7 — output formatting
 ├── models/
 │   ├── Course.py
 │   ├── UserProfile.py            # Profile + update() + degree_from_year()

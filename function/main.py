@@ -46,6 +46,22 @@ def reciprocal_rank_fusion(
     ]
 
 
+def reciprocal_rank_fusion_many(
+    rankings: list[list[RetrievalResult]],
+    k: int = 60,
+) -> list[RetrievalResult]:
+    rrf: dict[str, float] = {}
+    course_map: dict[str, Course] = {}
+    for results in rankings:
+        for rank, res in enumerate(results, start=1):
+            rrf[res.course.id] = rrf.get(res.course.id, 0.0) + 1.0 / (k + rank)
+            course_map[res.course.id] = res.course
+    return [
+        RetrievalResult(course=course_map[cid], score=round(s, 6), source="fusion")
+        for cid, s in sorted(rrf.items(), key=lambda x: x[1], reverse=True)
+    ]
+
+
 def check_prerequisites_met(course: Course, completed_courses: list[str]) -> tuple[bool, list[str]]:
     completed_set = set(completed_courses)
     # Normalize: extract .id if prereqs are Course objects, otherwise use as-is

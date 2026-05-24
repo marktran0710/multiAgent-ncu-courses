@@ -2,7 +2,7 @@
 #  Agent 4 — FusionAgent  (RRF)
 # ─────────────────────────────────────────────────────────────────────────────
 
-from function.main import check_prerequisites_met, reciprocal_rank_fusion
+from function.main import check_prerequisites_met, reciprocal_rank_fusion, reciprocal_rank_fusion_many
 from models.RetrievalResult import RetrievalResult
 from models.UserProfile import UserProfile
 
@@ -19,7 +19,21 @@ class FusionAgent:
         profile: UserProfile,                          # <-- add this
     ) -> tuple[list[RetrievalResult], list[RetrievalResult]]:   # <-- (eligible, locked)
         fused = reciprocal_rank_fusion(bm25_results, vector_results)
+        return self.filter_results(fused, profile)
 
+    def process_many(
+        self,
+        rankings: list[list[RetrievalResult]],
+        profile: UserProfile,
+    ) -> tuple[list[RetrievalResult], list[RetrievalResult]]:
+        fused = reciprocal_rank_fusion_many(rankings)
+        return self.filter_results(fused, profile)
+
+    def filter_results(
+        self,
+        fused: list[RetrievalResult],
+        profile: UserProfile,
+    ) -> tuple[list[RetrievalResult], list[RetrievalResult]]:
         DEGREE_RANK = {
             "undergrad": 1,
             "master": 2,

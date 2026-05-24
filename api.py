@@ -61,6 +61,8 @@ async def chat(request: ChatRequest, req: Request, response: Response):
         "full_output": details.get("full_output"),
         "eligible": details.get("eligible", []),
         "locked": details.get("locked", []),
+        "query_rag": details.get("query_rag", []),
+        "retrieval_methods": details.get("retrieval_methods", {}),
         "verdict": details.get("verdict", {}),
         "profile": new_profile.__dict__ if new_profile else None,
     })

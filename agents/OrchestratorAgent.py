@@ -8,6 +8,7 @@ from agents.IntakeAgent import IntakeAgent
 from agents.BM25 import BM25Agent
 from agents.FusionAgent import FusionAgent
 from agents.JudgeAgent import JudgeAgent
+from agents.QueryRAGAgent import QueryRAGAgent
 from agents.ResponseAgent import ResponseAgent
 from agents.VectorAgent import VectorAgent
 from config.main import GROQ_DEFAULT_MODEL
@@ -42,6 +43,7 @@ class CourseFinderOrchestrator:
         self.judge_agent  = JudgeAgent(model=model, provider=provider)
         self.bm25_agent     = BM25Agent(courses)
         self.vector_agent   = VectorAgent(courses)
+        self.query_rag_agent = QueryRAGAgent(courses, dense_agent=self.vector_agent)
         self.fusion_agent   = FusionAgent()
         self.response_agent = ResponseAgent()
 
@@ -58,11 +60,18 @@ class CourseFinderOrchestrator:
             # 2. Parallel Retrieval
             bm25_results   = self.bm25_agent.process(profile, top_k=6)
             vector_results = self.vector_agent.process(profile, top_k=6)
+            query_rankings = self.query_rag_agent.process(profile, top_k=6)
+            retrieval_rankings = {
+                "bm25_agent": bm25_results,
+                "vector_agent": vector_results,
+                **query_rankings,
+            }
             
             # 3. Fusion & Logical Filtering
             # This should return two lists: 
             # 'eligible' (Uncompleted + Prereqs met) and 'locked' (Uncompleted + Prereqs missing)
-            eligible, locked = self.fusion_agent.process(bm25_results, vector_results, profile)
+            query_fused = self.query_rag_agent.fuse(retrieval_rankings)
+            eligible, locked = self.fusion_agent.filter_results(query_fused, profile)
 
             # 4. The Judge's Decision
             # CRITICAL: We only pass 'eligible' courses to the judge.
@@ -111,6 +120,27 @@ class CourseFinderOrchestrator:
                     "confidence": verdict.confidence if verdict else None,
                 },
                 "full_output": full_output,
+                "query_rag": [
+                    {
+                        "id": r.course.id,
+                        "name": r.course.name,
+                        "score": r.score,
+                        "source": r.source,
+                    }
+                    for r in query_fused
+                ],
+                "retrieval_methods": {
+                    name: [
+                        {
+                            "id": r.course.id,
+                            "name": r.course.name,
+                            "score": r.score,
+                            "source": r.source,
+                        }
+                        for r in results
+                    ]
+                    for name, results in retrieval_rankings.items()
+                },
             }
             return full_output, user_output, profile, details
 

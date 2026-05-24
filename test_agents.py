@@ -22,6 +22,7 @@ from keywords.CourseKeywords import COURSE_KEYWORDS
 from function.main import tokenize, reciprocal_rank_fusion, check_prerequisites_met
 from agents.IntakeAgent import IntakeAgent
 from agents.BM25 import BM25Agent
+from agents.QueryRAGAgent import QueryRAGAgent
 from agents.VectorAgent import VectorAgent
 from agents.FusionAgent import FusionAgent
 from agents.JudgeAgent import JudgeAgent
@@ -71,6 +72,10 @@ def bm25_agent(all_courses) -> BM25Agent:
 @pytest.fixture
 def vector_agent(all_courses) -> VectorAgent:
     return VectorAgent(all_courses)
+
+@pytest.fixture
+def query_rag_agent(all_courses) -> QueryRAGAgent:
+    return QueryRAGAgent(all_courses)
 
 @pytest.fixture
 def fusion_agent() -> FusionAgent:
@@ -154,6 +159,32 @@ class TestVectorAgent:
 # ─────────────────────────────────────────────────────────────────────────────
 #  6. FusionAgent — prerequisite filtering
 # ─────────────────────────────────────────────────────────────────────────────
+
+class TestQueryRAGAgent:
+    def test_runs_all_requested_strategies(self, query_rag_agent, fresh_profile):
+        rankings = query_rag_agent.process(fresh_profile, top_k=3)
+        assert set(rankings) == {strategy.key for strategy in QueryRAGAgent.STRATEGIES}
+        assert all(len(results) == 3 for results in rankings.values())
+
+    def test_strongest_sparse_best_fields_is_available(self, query_rag_agent, fresh_profile):
+        rankings = query_rag_agent.process(fresh_profile, top_k=5)
+        ids = [r.course.id for r in rankings["sparse_best_fields"]]
+        assert "CSIE4001" in ids
+
+    def test_query_rag_fusion_returns_ranked_results(self, query_rag_agent, fresh_profile):
+        rankings = query_rag_agent.process(fresh_profile, top_k=4)
+        fused = query_rag_agent.fuse(rankings)
+        assert fused
+        assert all(r.source == "query_rag" for r in fused)
+        assert [r.score for r in fused] == sorted([r.score for r in fused], reverse=True)
+
+    def test_query_rag_fusion_accepts_original_bm25_and_vector_paths(self, query_rag_agent, fresh_profile):
+        rankings = query_rag_agent.process(fresh_profile, top_k=4)
+        rankings["bm25_agent"] = rankings["bm25_multi_match"]
+        rankings["vector_agent"] = rankings["knn_multi_match"]
+        fused = query_rag_agent.fuse(rankings)
+        assert fused
+
 
 class TestFusionAgent:
     def _make_results(self, ids: list[str], source: str) -> list[RetrievalResult]:
