@@ -97,6 +97,12 @@ class TestInternationalAdvisorUI(unittest.TestCase):
         self.assertIn("sendButton.disabled", self.html)
         self.assertIn("characterCount.textContent", self.html)
 
+    def test_realtime_chat_uses_websocket_with_http_fallback(self):
+        self.assertIn("new WebSocket", self.html)
+        self.assertIn("/ws/chat", self.html)
+        self.assertIn("function handleRealtimeEvent(event)", self.html)
+        self.assertIn("HTTP fallback", self.html)
+
     def test_no_old_generic_branding_remains(self):
         self.assertNotIn("<h1>Course Finder</h1>", self.html)
         self.assertNotIn("Recommendation Chat", self.html)

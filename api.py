@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -31,14 +31,37 @@ class AddCourseRequest(BaseModel):
 class LoginRequest(BaseModel):
     password: str
 
+def serialize_profile(profile: Optional[UserProfile]) -> Optional[dict]:
+    return profile.__dict__ if profile else None
+
+def run_chat_message(session_id: str, message: str) -> tuple[str, Optional[UserProfile], dict]:
+    profile = user_sessions.get(session_id)
+    user_output, new_profile, details = orchestrator.run_user(message, profile=profile)
+    if new_profile:
+        user_sessions[session_id] = new_profile
+
+    conversation_logs.append({
+        "session_id": session_id,
+        "user_message": message,
+        "bot_response": user_output,
+        "full_output": details.get("full_output"),
+        "eligible": details.get("eligible", []),
+        "locked": details.get("locked", []),
+        "query_rag": details.get("query_rag", []),
+        "retrieval_methods": details.get("retrieval_methods", {}),
+        "verdict": details.get("verdict", {}),
+        "profile": serialize_profile(new_profile),
+    })
+    return user_output, new_profile, details
+
 @app.get("/", response_class=HTMLResponse)
 async def get_user_interface():
-    with open("static/index.html", "r") as f:
+    with open("static/index.html", "r", encoding="utf-8") as f:
         return f.read()
 
 @app.get("/admin", response_class=HTMLResponse)
 async def get_admin_interface():
-    with open("static/admin.html", "r") as f:
+    with open("static/admin.html", "r", encoding="utf-8") as f:
         return f.read()
 
 @app.post("/chat")
@@ -48,26 +71,49 @@ async def chat(request: ChatRequest, req: Request, response: Response):
         session_id = str(uuid.uuid4())
         response.set_cookie(key="session_id", value=session_id)
 
-    profile = user_sessions.get(session_id)
-    user_output, new_profile, details = orchestrator.run_user(request.message, profile=profile)
-    if new_profile:
-        user_sessions[session_id] = new_profile
+    user_output, new_profile, _ = run_chat_message(session_id, request.message)
 
-    # Log conversation for admin review
-    conversation_logs.append({
+    return {"response": user_output, "profile": serialize_profile(new_profile)}
+
+@app.websocket("/ws/chat")
+async def chat_realtime(websocket: WebSocket):
+    await websocket.accept()
+    session_id = (
+        websocket.query_params.get("session_id")
+        or websocket.cookies.get("session_id")
+        or str(uuid.uuid4())
+    )
+    await websocket.send_json({
+        "type": "session",
         "session_id": session_id,
-        "user_message": request.message,
-        "bot_response": user_output,
-        "full_output": details.get("full_output"),
-        "eligible": details.get("eligible", []),
-        "locked": details.get("locked", []),
-        "query_rag": details.get("query_rag", []),
-        "retrieval_methods": details.get("retrieval_methods", {}),
-        "verdict": details.get("verdict", {}),
-        "profile": new_profile.__dict__ if new_profile else None,
+        "profile": serialize_profile(user_sessions.get(session_id)),
     })
 
-    return {"response": user_output, "profile": new_profile.__dict__ if new_profile else None}
+    try:
+        while True:
+            payload = await websocket.receive_json()
+            message = str(payload.get("message", "")).strip()
+            if not message:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Please enter a course advising message.",
+                })
+                continue
+
+            await websocket.send_json({"type": "status", "message": "Analyzing profile and retrieval signals"})
+            user_output, new_profile, details = run_chat_message(session_id, message)
+            await websocket.send_json({
+                "type": "response",
+                "response": user_output,
+                "profile": serialize_profile(new_profile),
+                "verdict": details.get("verdict", {}),
+                "eligible": details.get("eligible", []),
+                "locked": details.get("locked", []),
+            })
+            await websocket.send_json({"type": "done"})
+    except WebSocketDisconnect:
+        return
+
 
 @app.get("/profile")
 async def get_profile(req: Request):

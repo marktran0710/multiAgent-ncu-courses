@@ -38,8 +38,12 @@ class VectorAgent:
         self.chroma_client = chromadb.Client(Settings(anonymized_telemetry=False))
 
         if _ST_AVAILABLE:
-            self.embed_model = SentenceTransformer("all-MiniLM-L6-v2")
-            self._use_transformer = True
+            try:
+                self.embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+                self._use_transformer = True
+            except Exception as exc:
+                print(f"[{self.name}] WARNING: SentenceTransformer load failed ({exc}). Using TF-IDF fallback.")
+                self._use_transformer = False
         else:
             self._use_transformer = False
 

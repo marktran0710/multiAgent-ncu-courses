@@ -119,7 +119,15 @@
             width: 8px;
             height: 8px;
             border-radius: 99px;
+            background: #f59e0b;
+        }
+
+        .status-dot.connected {
             background: #22c55e;
+        }
+
+        .status-dot.offline {
+            background: #ef4444;
         }
 
         .ghost-button {
@@ -731,6 +739,7 @@
         const quickPrompts = document.getElementById('quickPrompts');
         const characterCount = document.getElementById('characterCount');
         const connectionStatus = document.getElementById('connectionStatus');
+        const statusDot = document.querySelector('.status-dot');
         const profileState = document.getElementById('profileState');
         const profileMeter = document.getElementById('profileMeter');
         const profileMeterLabel = document.getElementById('profileMeterLabel');
@@ -765,11 +774,15 @@
         let typingNode = null;
         let isSending = false;
         let activePromptGroup = 'Goals';
+        let chatSocket = null;
+        let realtimeSessionId = localStorage.getItem('ncu_realtime_session_id') || crypto.randomUUID();
+        localStorage.setItem('ncu_realtime_session_id', realtimeSessionId);
 
         function init() {
             renderPrompts();
             addMessage('bot', "Welcome. Share your academic goal, completed courses, language preference, or schedule constraints.");
             bindEvents();
+            connectRealtime();
             loadProfile();
             updateComposer();
         }
@@ -825,6 +838,74 @@
             quickPrompts.append(tabs, list);
         }
 
+        function connectRealtime() {
+            if (!('WebSocket' in window)) {
+                setConnectionState('HTTP fallback', 'offline');
+                return;
+            }
+
+            setConnectionState('Connecting', '');
+            const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            chatSocket = new WebSocket(`${protocol}://${window.location.host}/ws/chat?session_id=${encodeURIComponent(realtimeSessionId)}`);
+
+            chatSocket.addEventListener('open', () => {
+                setConnectionState('Realtime', 'connected');
+            });
+
+            chatSocket.addEventListener('message', (event) => {
+                handleRealtimeEvent(JSON.parse(event.data));
+            });
+
+            chatSocket.addEventListener('close', () => {
+                setConnectionState('Reconnecting', 'offline');
+                window.setTimeout(connectRealtime, 1800);
+            });
+
+            chatSocket.addEventListener('error', () => {
+                setConnectionState('HTTP fallback', 'offline');
+            });
+        }
+
+        function handleRealtimeEvent(event) {
+            if (event.type === 'session') {
+                realtimeSessionId = event.session_id || realtimeSessionId;
+                localStorage.setItem('ncu_realtime_session_id', realtimeSessionId);
+                if (event.profile) {
+                    updateProfile(event.profile);
+                    chatSummary.textContent = profileSummary(event.profile);
+                }
+                return;
+            }
+
+            if (event.type === 'status') {
+                showTyping();
+                connectionStatus.textContent = 'Thinking';
+                return;
+            }
+
+            if (event.type === 'response') {
+                hideTyping();
+                addMessage('bot', event.response || 'I could not generate a recommendation.');
+                updateProfile(event.profile);
+                addActivity('Recommendation updated in realtime.');
+                chatSummary.textContent = event.profile ? profileSummary(event.profile) : 'No active advising profile.';
+                return;
+            }
+
+            if (event.type === 'error') {
+                hideTyping();
+                addMessage('system', event.message || 'Realtime chat failed.');
+                setSending(false);
+                return;
+            }
+
+            if (event.type === 'done') {
+                hideTyping();
+                setSending(false);
+                setConnectionState('Realtime', 'connected');
+            }
+        }
+
         async function sendMessage() {
             const message = input.value.trim();
             if (!message || isSending) return;
@@ -835,9 +916,14 @@
             input.value = '';
             autoResizeInput();
             updateComposer();
-            showTyping();
+
+            if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+                chatSocket.send(JSON.stringify({ message }));
+                return;
+            }
 
             try {
+                showTyping();
                 const response = await fetch('/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1013,7 +1099,19 @@
             isSending = value;
             sendButton.disabled = value || !input.value.trim();
             sendButton.textContent = value ? 'Sending' : 'Send';
-            connectionStatus.textContent = value ? 'Thinking' : 'Ready';
+            if (value) {
+                connectionStatus.textContent = 'Thinking';
+            } else if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+                setConnectionState('Realtime', 'connected');
+            } else {
+                setConnectionState('HTTP fallback', 'offline');
+            }
+        }
+
+        function setConnectionState(label, state) {
+            connectionStatus.textContent = label;
+            statusDot.classList.toggle('connected', state === 'connected');
+            statusDot.classList.toggle('offline', state === 'offline');
         }
 
         function updateComposer() {
