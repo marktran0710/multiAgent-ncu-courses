@@ -9,18 +9,21 @@
         :root {
             color-scheme: light;
             font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            --bg: #f4f7fb;
+            --bg: #f3f6f8;
             --panel: #ffffff;
-            --panel-soft: #f8fafc;
-            --ink: #111827;
-            --muted: #64748b;
-            --line: #d8e0ea;
-            --blue: #2563eb;
-            --blue-dark: #1d4ed8;
-            --green: #059669;
-            --amber: #b45309;
+            --panel-soft: #f7f9fb;
+            --ink: #172033;
+            --muted: #5f6f82;
+            --line: #d9e1ea;
+            --navy: #10243e;
+            --navy-soft: #183554;
+            --blue: #1f5f99;
+            --blue-dark: #174a78;
+            --teal: #087f7b;
+            --green: #16845c;
+            --amber: #9a6a16;
             --rose: #e11d48;
-            --shadow: 0 18px 48px rgba(15, 23, 42, 0.10);
+            --shadow: 0 18px 38px rgba(16, 36, 62, 0.10);
         }
 
         * {
@@ -30,7 +33,8 @@
         body {
             margin: 0;
             min-height: 100vh;
-            background: var(--bg);
+            background:
+                linear-gradient(180deg, #edf2f6 0%, #f7f9fb 44%, #eef3f6 100%);
             color: var(--ink);
         }
 
@@ -55,8 +59,8 @@
             justify-content: space-between;
             align-items: center;
             gap: 16px;
-            padding: 14px 24px;
-            background: #0f172a;
+            padding: 14px 28px;
+            background: var(--navy);
             color: #f8fafc;
             border-bottom: 1px solid rgba(255, 255, 255, 0.10);
         }
@@ -71,17 +75,18 @@
         .brand-mark {
             display: grid;
             place-items: center;
-            width: 36px;
-            height: 36px;
+            width: 40px;
+            height: 40px;
             border-radius: 8px;
-            background: #f8fafc;
-            color: #0f172a;
+            background: #f9fafb;
+            color: var(--navy);
             font-weight: 800;
+            letter-spacing: 0;
         }
 
         .brand h1 {
             margin: 0;
-            font-size: 1.05rem;
+            font-size: 1.08rem;
             letter-spacing: 0;
             white-space: nowrap;
         }
@@ -89,7 +94,7 @@
         .brand p {
             margin: 2px 0 0;
             color: #cbd5e1;
-            font-size: 0.88rem;
+            font-size: 0.86rem;
         }
 
         .topbar-actions {
@@ -133,9 +138,9 @@
 
         .workspace {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) 340px;
+            grid-template-columns: minmax(0, 1fr) 368px;
             gap: 18px;
-            width: min(100%, 1280px);
+            width: min(100%, 1360px);
             margin: 0 auto;
             padding: 18px;
         }
@@ -157,11 +162,10 @@
         }
 
         .chat-toolbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            display: grid;
             gap: 12px;
-            padding: 14px 16px;
+            gap: 12px;
+            padding: 16px 18px;
             border-bottom: 1px solid var(--line);
             background: var(--panel-soft);
         }
@@ -172,7 +176,7 @@
 
         .chat-title h2 {
             margin: 0;
-            font-size: 1rem;
+            font-size: 1.08rem;
         }
 
         .chat-title p {
@@ -187,7 +191,35 @@
             gap: 14px;
             overflow-y: auto;
             padding: 18px;
-            background: #eef3f8;
+            background: #eef3f6;
+        }
+
+        .context-strip {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .context-item {
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        .context-label {
+            color: var(--muted);
+            font-size: 0.75rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0;
+        }
+
+        .context-value {
+            margin-top: 4px;
+            color: var(--ink);
+            font-weight: 750;
+            font-size: 0.95rem;
         }
 
         .message {
@@ -226,7 +258,7 @@
         }
 
         .message.user .bubble {
-            background: var(--blue);
+            background: var(--navy-soft);
             color: #ffffff;
         }
 
@@ -265,11 +297,38 @@
         }
 
         .quick-prompts {
-            display: flex;
-            flex-wrap: wrap;
+            display: grid;
             gap: 8px;
             padding: 12px 16px 0;
             background: #ffffff;
+        }
+
+        .prompt-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .prompt-tab {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #f8fafc;
+            color: #334155;
+            padding: 7px 10px;
+            font-size: 0.86rem;
+            font-weight: 700;
+        }
+
+        .prompt-tab.active {
+            background: var(--navy);
+            border-color: var(--navy);
+            color: #ffffff;
+        }
+
+        .prompt-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
         }
 
         .prompt-chip,
@@ -284,9 +343,9 @@
         }
 
         .prompt-chip:hover {
-            border-color: #93c5fd;
-            background: #eff6ff;
-            color: #1d4ed8;
+            border-color: #8fb8d8;
+            background: #eef6fb;
+            color: var(--blue-dark);
         }
 
         .composer {
@@ -325,14 +384,14 @@
             min-height: 48px;
             border: none;
             border-radius: 8px;
-            background: var(--blue);
+            background: var(--teal);
             color: #ffffff;
             font-weight: 700;
             transition: background 0.15s ease, transform 0.15s ease;
         }
 
         .send-button:hover {
-            background: var(--blue-dark);
+            background: #066966;
             transform: translateY(-1px);
         }
 
@@ -398,7 +457,7 @@
         .meter-fill {
             width: 0%;
             height: 100%;
-            background: var(--green);
+            background: var(--teal);
             transition: width 0.25s ease;
         }
 
@@ -472,8 +531,8 @@
             width: 24px;
             height: 24px;
             border-radius: 8px;
-            background: #e0f2fe;
-            color: #075985;
+            background: #e6f4f1;
+            color: #075f5b;
             font-weight: 800;
             font-size: 0.78rem;
         }
@@ -565,6 +624,10 @@
                 grid-template-columns: 1fr;
             }
 
+            .context-strip {
+                grid-template-columns: 1fr;
+            }
+
             .send-button {
                 width: 100%;
             }
@@ -578,8 +641,8 @@
             <div class="brand">
                 <div class="brand-mark">NCU</div>
                 <div>
-                    <h1>Course Finder</h1>
-                    <p>Personalized course recommendations</p>
+                    <h1>International Course Advisor</h1>
+                    <p>National Central University</p>
                 </div>
             </div>
             <div class="topbar-actions">
@@ -592,8 +655,22 @@
             <section class="chat-panel" aria-label="Course chat">
                 <div class="chat-toolbar">
                     <div class="chat-title">
-                        <h2>Recommendation Chat</h2>
-                        <p id="chatSummary">No active recommendation yet.</p>
+                        <h2>Academic Advising Desk</h2>
+                        <p id="chatSummary">No active advising profile.</p>
+                    </div>
+                    <div class="context-strip" aria-label="Advising context">
+                        <div class="context-item">
+                            <div class="context-label">Pathway</div>
+                            <div class="context-value">Undergraduate to PhD</div>
+                        </div>
+                        <div class="context-item">
+                            <div class="context-label">Language</div>
+                            <div class="context-value">English / Chinese</div>
+                        </div>
+                        <div class="context-item">
+                            <div class="context-label">Decision Basis</div>
+                            <div class="context-value">Fit and eligibility</div>
+                        </div>
                     </div>
                 </div>
 
@@ -602,20 +679,20 @@
                 <div class="composer">
                     <div class="quick-prompts" id="quickPrompts"></div>
                     <div class="composer-inner">
-                        <textarea id="messageInput" placeholder="Ask about courses..." autocomplete="off" rows="1"></textarea>
+                        <textarea id="messageInput" placeholder="Study goal, completed courses, language, or schedule" autocomplete="off" rows="1"></textarea>
                         <button class="send-button" id="sendButton" type="button">Send</button>
                     </div>
                     <div class="composer-footer">
-                        <span id="inputHint">Ready for a course request.</span>
+                        <span id="inputHint">Academic advising session ready.</span>
                         <span id="characterCount">0 / 500</span>
                     </div>
                 </div>
             </section>
 
-            <aside class="side-panel" aria-label="Student profile">
+            <aside class="side-panel" aria-label="Student advising profile">
                 <section class="side-section">
                     <div class="section-heading">
-                        <h2>Your Profile</h2>
+                        <h2>Student Profile</h2>
                         <span class="tag" id="profileState">Empty</span>
                     </div>
                     <div class="profile-meter">
@@ -632,7 +709,7 @@
 
                 <section class="side-section">
                     <div class="section-heading">
-                        <h3>Session Notes</h3>
+                        <h3>Advising Trail</h3>
                     </div>
                     <div class="activity-list" id="activityList">
                         <div class="activity-item">
@@ -662,20 +739,36 @@
         const toast = document.getElementById('toast');
 
         const maxChars = 500;
-        const prompts = [
-            'I want to learn machine learning',
-            'I completed CSIE1001 and CSIE2001',
-            'Recommend an English AI course',
-            'I need a beginner programming course',
-            'I prefer Tuesday or Thursday classes'
-        ];
+        const promptGroups = {
+            Goals: [
+                'I want to study machine learning',
+                'I am interested in natural language processing',
+                'I want a course for data science preparation'
+            ],
+            Background: [
+                'I completed CSIE1001 and CSIE2001',
+                'I am a first-year undergraduate student',
+                'I finished machine learning and statistics'
+            ],
+            Language: [
+                'Recommend an English-taught AI course',
+                'I prefer Chinese-taught courses',
+                'I need a graduate-level English course'
+            ],
+            Schedule: [
+                'I prefer Tuesday or Thursday classes',
+                'I need a course offered in Spring',
+                'I want a course with no prerequisites'
+            ]
+        };
         const activity = [];
         let typingNode = null;
         let isSending = false;
+        let activePromptGroup = 'Goals';
 
         function init() {
             renderPrompts();
-            addMessage('bot', "Welcome. Tell me what you want to learn, what you have completed, or when you are available.");
+            addMessage('bot', "Welcome. Share your academic goal, completed courses, language preference, or schedule constraints.");
             bindEvents();
             loadProfile();
             updateComposer();
@@ -698,7 +791,24 @@
 
         function renderPrompts() {
             quickPrompts.replaceChildren();
-            prompts.forEach((prompt) => {
+
+            const tabs = document.createElement('div');
+            tabs.className = 'prompt-tabs';
+            Object.keys(promptGroups).forEach((group) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `prompt-tab${group === activePromptGroup ? ' active' : ''}`;
+                button.textContent = group;
+                button.addEventListener('click', () => {
+                    activePromptGroup = group;
+                    renderPrompts();
+                });
+                tabs.appendChild(button);
+            });
+
+            const list = document.createElement('div');
+            list.className = 'prompt-list';
+            promptGroups[activePromptGroup].forEach((prompt) => {
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'prompt-chip';
@@ -709,8 +819,10 @@
                     updateComposer();
                     input.focus();
                 });
-                quickPrompts.appendChild(button);
+                list.appendChild(button);
             });
+
+            quickPrompts.append(tabs, list);
         }
 
         async function sendMessage() {
@@ -741,7 +853,7 @@
                 addMessage('bot', data.response || 'I could not generate a recommendation.');
                 updateProfile(data.profile);
                 addActivity('Recommendation updated.');
-                chatSummary.textContent = data.profile ? profileSummary(data.profile) : 'No active profile yet.';
+                chatSummary.textContent = data.profile ? profileSummary(data.profile) : 'No active advising profile.';
             } catch (error) {
                 hideTyping();
                 addMessage('system', 'The request could not be completed. Please try again.');
