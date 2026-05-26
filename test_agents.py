@@ -155,6 +155,22 @@ class TestVectorAgent:
         ids = [r.course.id for r in results]
         assert "CSIE4003" in ids
 
+    def test_transformer_load_failure_uses_tfidf_fallback(self, monkeypatch, all_courses, fresh_profile):
+        import agents.VectorAgent as vector_module
+
+        def fail_to_load(*args, **kwargs):
+            raise RuntimeError("offline model cache")
+
+        monkeypatch.setattr(vector_module, "_ST_AVAILABLE", True)
+        monkeypatch.setattr(vector_module, "SentenceTransformer", fail_to_load)
+
+        agent = VectorAgent(all_courses)
+        results = agent.process(fresh_profile, top_k=3)
+
+        assert agent._use_transformer is False
+        assert agent.collection is None
+        assert len(results) == 3
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  6. FusionAgent — prerequisite filtering
@@ -340,6 +356,34 @@ class TestIntakeAgentProfileBuilding:
         assert profile.academic_year == 1
         assert profile.degree_level == "undergrad"
 
+    def test_heuristic_fallback_keeps_language_hint(self):
+        agent = IntakeAgent()
+        profile = agent._heuristic_fallback("any course is taught by english I can learn")
+        assert profile.preferred_language == "English"
+        assert "English courses only" in profile.constraints
+
+    def test_process_llm_failure_updates_existing_profile_with_language_hint(self, monkeypatch):
+        agent = IntakeAgent()
+        existing = UserProfile(
+            raw_input="old",
+            academic_year=3,
+            degree_level="undergrad",
+            completed_courses=["CSIE1001", "CSIE2001"],
+            goals=["machine learning"],
+            constraints=[],
+            search_query="machine learning",
+        )
+
+        def raise_error(_messages):
+            raise RuntimeError("provider unavailable")
+
+        monkeypatch.setattr(agent, "_call_llm", raise_error)
+        profile = agent.process("any course is taught by english I can learn", existing_profile=existing)
+
+        assert profile is existing
+        assert profile.preferred_language == "English"
+        assert "English courses only" in profile.constraints
+
     def test_update_merges_goals(self):
         agent = IntakeAgent()
         existing = UserProfile(
@@ -373,6 +417,22 @@ class TestIntakeAgentProfileBuilding:
         args = {"completed_courses": ["CSIE1001"]}   # already in list
         existing.update("new", args)
         assert existing.completed_courses.count("CSIE1001") == 1
+
+    def test_apply_language_hint_adds_english_constraint(self):
+        args = {"constraints": [], "search_query": "english taught courses"}
+        updated = IntakeAgent._apply_language_hint(
+            "any course is taught by english I can learn",
+            args,
+        )
+        assert "English courses only" in updated["constraints"]
+
+    def test_apply_language_hint_does_not_convert_language_comparison_question(self):
+        args = {"constraints": [], "search_query": "course language"}
+        updated = IntakeAgent._apply_language_hint(
+            "ok but the course taught by english or chinese",
+            args,
+        )
+        assert updated["constraints"] == []
 
 
 # ─────────────────────────────────────────────────────────────────────────────

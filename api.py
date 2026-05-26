@@ -17,6 +17,7 @@ orchestrator = CourseFinderOrchestrator()
 
 # In-memory storage for simplicity (use database in production)
 user_sessions: Dict[str, UserProfile] = {}
+last_recommendations: Dict[str, str] = {}
 conversation_logs: list = []
 
 # Admin password (hardcoded for demo)
@@ -34,11 +35,84 @@ class LoginRequest(BaseModel):
 def serialize_profile(profile: Optional[UserProfile]) -> Optional[dict]:
     return profile.__dict__ if profile else None
 
+def is_course_language_question(message: str) -> bool:
+    text = message.lower()
+    has_language = any(word in text for word in ("english", "chinese", "language", "taught"))
+    asks_previous_course = any(
+        phrase in text
+        for phrase in (
+            "the course",
+            "this course",
+            "that course",
+            "recommended course",
+            "the recommendation",
+            "this recommendation",
+            "that recommendation",
+        )
+    ) or any(f" {pronoun} " in f" {text} " for pronoun in ("it", "this", "that"))
+    asks_for_any_course = any(
+        phrase in text
+        for phrase in (
+            "any course",
+            "which course",
+            "what course",
+            "courses",
+            "can learn",
+            "can i take",
+            "recommend",
+        )
+    )
+    return has_language and asks_previous_course and not asks_for_any_course
+
+def answer_course_language(session_id: str) -> Optional[tuple[str, Optional[UserProfile], dict]]:
+    course_id = last_recommendations.get(session_id)
+    if not course_id:
+        return None
+
+    course = orchestrator.course_map.get(course_id)
+    if not course:
+        return None
+
+    language = course.language or "Chinese"
+    response = f"[{course.id}] {course.name} is taught in {language}."
+    profile = user_sessions.get(session_id)
+    details = {
+        "full_output": response,
+        "eligible": [],
+        "locked": [],
+        "query_rag": [],
+        "retrieval_methods": {},
+        "verdict": {"best_course_id": course.id},
+    }
+    return response, profile, details
+
 def run_chat_message(session_id: str, message: str) -> tuple[str, Optional[UserProfile], dict]:
+    if is_course_language_question(message):
+        language_answer = answer_course_language(session_id)
+        if language_answer:
+            user_output, profile, details = language_answer
+            conversation_logs.append({
+                "session_id": session_id,
+                "user_message": message,
+                "bot_response": user_output,
+                "full_output": details.get("full_output"),
+                "eligible": [],
+                "locked": [],
+                "query_rag": [],
+                "retrieval_methods": {},
+                "verdict": details.get("verdict", {}),
+                "profile": serialize_profile(profile),
+            })
+            return language_answer
+
     profile = user_sessions.get(session_id)
     user_output, new_profile, details = orchestrator.run_user(message, profile=profile)
     if new_profile:
         user_sessions[session_id] = new_profile
+
+    best_course_id = (details.get("verdict") or {}).get("best_course_id")
+    if best_course_id:
+        last_recommendations[session_id] = best_course_id
 
     conversation_logs.append({
         "session_id": session_id,

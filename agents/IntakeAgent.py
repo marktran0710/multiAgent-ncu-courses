@@ -134,20 +134,64 @@ class IntakeAgent:
         else:
             year = 1
 
+        args = self._apply_language_hint(
+            raw_input,
+            {
+                "academic_year": year,
+                "completed_courses": [],
+                "goals": [],
+                "constraints": [],
+                "search_query": raw_input,
+            },
+        )
+
         return UserProfile(
             raw_input=raw_input,
             academic_year=year,
             degree_level=degree_from_year(year),  # tự map
             completed_courses=[],
             goals=[],
-            constraints=[],
+            constraints=args.get("constraints") or [],
             search_query=raw_input,
+            preferred_language=UserProfile._extract_preferred_language(args.get("constraints") or []),
         )
 
     @staticmethod
     def _is_on_topic(text: str) -> bool:
         words = set(re.findall(r"[a-z0-9]+", text.lower()))
         return any(kw in words for kw in COURSE_KEYWORDS)
+
+    @staticmethod
+    def _apply_language_hint(raw_input: str, args: dict) -> dict:
+        text = raw_input.lower()
+        asks_language_filtered_course = any(
+            phrase in text
+            for phrase in (
+                "english taught",
+                "english-taught",
+                "taught by english",
+                "taught in english",
+                "english course",
+                "english courses",
+                "chinese taught",
+                "chinese-taught",
+                "taught by chinese",
+                "taught in chinese",
+                "chinese course",
+                "chinese courses",
+            )
+        )
+        asks_about_two_languages = "english" in text and "chinese" in text
+        if not asks_language_filtered_course or asks_about_two_languages:
+            return args
+
+        language = "English" if "english" in text else "Chinese"
+        constraint = f"{language} courses only"
+        constraints = list(args.get("constraints") or [])
+        if not any(constraint.lower() == existing.lower() for existing in constraints):
+            constraints.append(constraint)
+        args["constraints"] = constraints
+        return args
 
     def process(
         self,
@@ -211,6 +255,7 @@ class IntakeAgent:
 
         try:
             args = self._call_llm(messages)
+            args = self._apply_language_hint(raw_input, args)
 
             if args.get("needs_clarification"):
                 course_list = "\n".join(f"  {c['id']}: {c['name']}" for c in RAW_COURSES)
@@ -226,7 +271,16 @@ class IntakeAgent:
 
         except Exception as exc:
             print(f"[{self.name}] LLM call failed: {exc}. Using heuristic fallback.")
-            return existing_profile or self._heuristic_fallback(raw_input)
+            fallback_profile = self._heuristic_fallback(raw_input)
+            if existing_profile:
+                existing_profile.update(raw_input, {
+                    "completed_courses": [],
+                    "goals": [],
+                    "constraints": fallback_profile.constraints,
+                    "search_query": fallback_profile.search_query,
+                })
+                return existing_profile
+            return fallback_profile
 
     def _build_profile(self, raw_input: str, args: dict) -> UserProfile:
 
