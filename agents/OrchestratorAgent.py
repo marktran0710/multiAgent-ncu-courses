@@ -14,6 +14,7 @@ from agents.VectorAgent import VectorAgent
 from config.main import GROQ_DEFAULT_MODEL
 from keywords.OffTopicResponse import OFF_TOPIC_RESPONSE
 from models.Course import Course
+from models.RetrievalResult import RetrievalResult
 from models.UserProfile import RAW_COURSES, UserProfile
 
 class CourseFinderOrchestrator:
@@ -47,6 +48,37 @@ class CourseFinderOrchestrator:
         self.fusion_agent   = FusionAgent()
         self.response_agent = ResponseAgent()
 
+    def _append_prerequisite_path(
+        self,
+        results: list[RetrievalResult],
+    ) -> list[RetrievalResult]:
+        seen = {r.course.id for r in results}
+        expanded = set()
+        queue = [pid for r in results for pid in r.course.prerequisites]
+        bridged = list(results)
+
+        while queue:
+            course_id = queue.pop(0)
+            course = self.course_map.get(course_id)
+            if not course:
+                continue
+
+            if course_id not in seen:
+                seen.add(course_id)
+                bridged.append(
+                    RetrievalResult(
+                        course=course,
+                        score=max(0.0001, 0.001 / (len(bridged) + 1)),
+                        source="prerequisite_path",
+                    )
+                )
+
+            if course_id not in expanded:
+                expanded.add(course_id)
+                queue.extend(course.prerequisites)
+
+        return bridged
+
     def _run_pipeline(
         self,
         raw_input: str,
@@ -71,6 +103,7 @@ class CourseFinderOrchestrator:
             # This should return two lists: 
             # 'eligible' (Uncompleted + Prereqs met) and 'locked' (Uncompleted + Prereqs missing)
             query_fused = self.query_rag_agent.fuse(retrieval_rankings)
+            query_fused = self._append_prerequisite_path(query_fused)
             eligible, locked = self.fusion_agent.filter_results(query_fused, profile)
 
             # 4. The Judge's Decision
@@ -91,7 +124,12 @@ class CourseFinderOrchestrator:
                 verdict=verdict,
                 course_map=self.course_map,
             )
-            user_output = self.response_agent.minimal_response(verdict, self.course_map)
+            user_output = self.response_agent.minimal_response(
+                verdict,
+                self.course_map,
+                locked_results=locked,
+                profile=profile,
+            )
             details = {
                 "eligible": [
                     {

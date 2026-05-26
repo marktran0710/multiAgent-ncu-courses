@@ -28,6 +28,18 @@ from agents.OrchestratorAgent import CourseFinderOrchestrator
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestPipelineEndToEnd:
+    def test_prerequisite_path_bridge_adds_next_step_courses(self):
+        orchestrator = CourseFinderOrchestrator()
+        os_course = orchestrator.course_map["CSIE3002"]
+        bridged = orchestrator._append_prerequisite_path([
+            RetrievalResult(os_course, 1.0, "query_rag"),
+        ])
+
+        ids = [r.course.id for r in bridged]
+        assert "CSIE2001" in ids
+        assert "CSIE2002" in ids
+        assert "CSIE1001" in ids
+
     @patch("function.main.call_groq_with_tools")
     def test_beginner_gets_no_prereq_course(self, mock_groq):
         """Freshman with no completed courses should only get courses with no prereqs."""

@@ -434,6 +434,27 @@ class TestIntakeAgentProfileBuilding:
         )
         assert updated["constraints"] == []
 
+    def test_call_llm_falls_back_to_gemini_when_groq_fails(self, monkeypatch):
+        agent = IntakeAgent(provider="groq")
+
+        def fail_groq(*_args, **_kwargs):
+            raise RuntimeError("groq unavailable")
+
+        gemini = MagicMock(return_value={
+            "academic_year": 1,
+            "completed_courses": [],
+            "goals": ["programming"],
+            "constraints": [],
+            "search_query": "programming",
+        })
+
+        monkeypatch.setattr("agents.IntakeAgent.call_groq_with_tools", fail_groq)
+        monkeypatch.setattr("agents.IntakeAgent.call_gemini_with_tools", gemini)
+
+        result = agent._call_llm([{"role": "user", "content": "course"}])
+        assert result["search_query"] == "programming"
+        gemini.assert_called_once()
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  9. JudgeAgent
@@ -454,6 +475,8 @@ class TestJudgeAgent:
         verdict = agent._fallback_verdict(results)
         assert verdict.best_course_id == all_courses[0].id
         assert verdict.confidence == "low"
+        assert "Groq" not in verdict.reasoning
+        assert "unavailable" not in verdict.reasoning
 
     def test_build_verdict_filters_hallucinated_id(self, all_courses):
         agent = JudgeAgent()
@@ -494,6 +517,26 @@ class TestJudgeAgent:
         }
         verdict = agent._build_verdict(args, results)
         assert verdict.runner_up_id is None
+
+    def test_call_llm_falls_back_to_gemini_when_groq_fails(self, monkeypatch, all_courses):
+        agent = JudgeAgent(provider="groq")
+
+        def fail_groq(*_args, **_kwargs):
+            raise RuntimeError("groq unavailable")
+
+        gemini = MagicMock(return_value={
+            "best_course_id": all_courses[0].id,
+            "runner_up_id": all_courses[1].id,
+            "reasoning": "Gemini fallback selected the best eligible course.",
+            "confidence": "medium",
+        })
+
+        monkeypatch.setattr("agents.JudgeAgent.call_groq_with_tools", fail_groq)
+        monkeypatch.setattr("agents.JudgeAgent.call_gemini_with_tools", gemini)
+
+        result = agent._call_llm([{"role": "user", "content": "judge"}])
+        assert result["best_course_id"] == all_courses[0].id
+        gemini.assert_called_once()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -539,6 +582,33 @@ class TestResponseAgent:
             beginner_profile, [], locked, [], [], None, course_map
         )
         assert "NO ELIGIBLE" in out
+
+    def test_minimal_response_uses_locked_english_pathway(
+        self, response_agent, course_map
+    ):
+        profile = UserProfile(
+            raw_input="Recommend an English-taught AI course",
+            academic_year=1,
+            degree_level="undergrad",
+            completed_courses=[],
+            goals=["AI"],
+            constraints=["English courses only"],
+            preferred_language="English",
+            search_query="English taught AI course",
+        )
+        chinese_locked = self._make_locked(course_map, "CSIE4001", ["CSIE3001", "MATH2001"])
+        english_locked = self._make_locked(course_map, "CSIE4005", ["CSIE4001"])
+
+        out = response_agent.minimal_response(
+            None,
+            course_map,
+            locked_results=[chinese_locked, english_locked],
+            profile=profile,
+        )
+
+        assert "[CSIE4005] Reinforcement Learning" in out
+        assert "Complete first: CSIE4001 (Machine Learning)." in out
+        assert "I couldn't find an eligible course" not in out
 
     def test_student_profile_section_in_output(
         self, response_agent, fresh_profile, course_map

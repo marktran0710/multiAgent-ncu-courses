@@ -2,7 +2,7 @@
 #  Agent 5 — JudgeAgent  (function calling via Groq)
 # ─────────────────────────────────────────────────────────────────────────────
 
-from config.main import GROQ_DEFAULT_MODEL
+from config.main import GEMINI_DEFAULT_MODEL, GROQ_DEFAULT_MODEL
 from function.main import call_gemini_with_tools, call_groq_with_tools
 from models.JudgeVerdict import JudgeVerdict
 from models.RetrievalResult import RetrievalResult
@@ -92,7 +92,12 @@ class JudgeAgent:
     def _call_llm(self, messages: list[dict]) -> dict:
         if self.provider == "gemini":
             return call_gemini_with_tools(messages, [JUDGE_TOOL], model=self.model)
-        return call_groq_with_tools(messages, [JUDGE_TOOL], model=self.model)
+
+        try:
+            return call_groq_with_tools(messages, [JUDGE_TOOL], model=self.model)
+        except Exception as exc:
+            print(f"[{self.name}] Groq failed: {exc}. Trying Gemini fallback.")
+            return call_gemini_with_tools(messages, [JUDGE_TOOL], model=GEMINI_DEFAULT_MODEL)
     
     def process(
         self,
@@ -126,7 +131,7 @@ class JudgeAgent:
             return self._build_verdict(args, fused_results)
         except Exception as exc:
             print(f"[{self.name}] LLM call failed ({self.provider}): {exc}. Defaulting to RRF #1.")
-            return self._fallback_verdict(fused_results)
+            return self._fallback_verdict(fused_results, profile)
 
     # ── helpers ──────────────────────────────────────────────────────────────
 
@@ -162,14 +167,23 @@ class JudgeAgent:
         )
 
     @staticmethod
-    def _fallback_verdict(fused: list[RetrievalResult]) -> JudgeVerdict:
+    def _fallback_verdict(
+        fused: list[RetrievalResult],
+        profile: UserProfile | None = None,
+    ) -> JudgeVerdict:
         best = fused[0]
         runner_up = fused[1].course.id if len(fused) > 1 else None
+        goal_text = ", ".join(profile.goals[:2]) if profile and profile.goals else "your current academic goals"
+        completed_text = (
+            f" and builds on your completed courses ({', '.join(profile.completed_courses[-4:])})"
+            if profile and profile.completed_courses
+            else ""
+        )
         return JudgeVerdict(
             best_course_id=best.course.id,
             reasoning=(
-                f"Selected based on highest RRF score ({best.score:.6f}). "
-                "Groq was unavailable for deeper reasoning."
+                f"{best.course.name} is the strongest eligible match for {goal_text}{completed_text}. "
+                f"It covers {best.course.description}"
             ),
             confidence="low",
             runner_up_id=runner_up,

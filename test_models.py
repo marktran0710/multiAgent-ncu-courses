@@ -85,6 +85,17 @@ class TestUserProfileDescribe:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestRawCourseData:
+    def test_catalog_contains_70_courses(self):
+        assert len(RAW_COURSES) == 70
+
+    def test_catalog_includes_eecs_departments(self):
+        departments = {c["department"] for c in RAW_COURSES}
+        assert {
+            "Computer Science and Information Engineering",
+            "Electrical Engineering",
+            "Communication Engineering",
+        }.issubset(departments)
+
     def test_all_prereqs_reference_valid_ids(self):
         for c in RAW_COURSES:
             for p in c["prerequisites"]:
@@ -103,6 +114,11 @@ class TestRawCourseData:
     def test_credits_are_positive_integers(self):
         for c in RAW_COURSES:
             assert isinstance(c["credits"], int) and c["credits"] > 0
+
+    def test_language_and_degree_values_are_supported(self, all_courses):
+        for c in all_courses:
+            assert c.language in {"Chinese", "English"}
+            assert c.degree in {"undergrad", "master", "phd"}
 
     def test_course_full_text_not_empty(self, all_courses):
         for c in all_courses:

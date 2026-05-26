@@ -5,7 +5,7 @@
 import re
 from typing import Optional
 
-from config.main import GROQ_DEFAULT_MODEL
+from config.main import GEMINI_DEFAULT_MODEL, GROQ_DEFAULT_MODEL
 from function.main import call_groq_with_tools, call_gemini_with_tools
 from keywords.CourseKeywords import COURSE_KEYWORDS
 from models.UserProfile import DEGREE_YEAR_RANGES, RAW_COURSES, VALID_COURSE_IDS, UserProfile, degree_from_year
@@ -122,7 +122,12 @@ class IntakeAgent:
         """Route to the correct LLM provider."""
         if self.provider == "gemini":
             return call_gemini_with_tools(messages, [INTAKE_TOOL], model=self.model)
-        return call_groq_with_tools(messages, [INTAKE_TOOL], model=self.model)
+
+        try:
+            return call_groq_with_tools(messages, [INTAKE_TOOL], model=self.model)
+        except Exception as exc:
+            print(f"[{self.name}] Groq failed: {exc}. Trying Gemini fallback.")
+            return call_gemini_with_tools(messages, [INTAKE_TOOL], model=GEMINI_DEFAULT_MODEL)
 
     def _heuristic_fallback(self, raw_input: str) -> UserProfile:
         text = raw_input.lower()
@@ -159,7 +164,13 @@ class IntakeAgent:
     @staticmethod
     def _is_on_topic(text: str) -> bool:
         words = set(re.findall(r"[a-z0-9]+", text.lower()))
-        return any(kw in words for kw in COURSE_KEYWORDS)
+        generic_question_words = {
+            "what", "which", "how", "when", "where", "why", "can", "should",
+            "help", "assist", "information", "info", "details", "about",
+            "regarding", "concerning",
+        }
+        topic_keywords = COURSE_KEYWORDS - generic_question_words
+        return any(kw in words for kw in topic_keywords)
 
     @staticmethod
     def _apply_language_hint(raw_input: str, args: dict) -> dict:

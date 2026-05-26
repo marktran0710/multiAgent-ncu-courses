@@ -16,7 +16,7 @@
 | Student support             | Undergrad only           | **Undergrad + Master's + PhD** via `academic_year` mapping                  |
 | Embeddings                  | Ollama Llama3            | **Sentence-Transformers** (`all-MiniLM-L6-v2`)                              |
 | Session memory              | Stateless (single turn)  | **Multi-turn** — `UserProfile.update()` merges follow-up input across turns |
-| Course catalogue            | 3 undergrad courses      | **13 courses** across CSIE and Mathematics departments                      |
+| Course catalogue            | 3 undergrad courses      | **70 courses** across CSIE, EE, Communication Engineering, and supporting Math |
 | Off-topic guard             | None                     | Keyword-based guard on first message only                                   |
 | Prerequisites               | Not checked              | Hard filter — locked courses shown with "complete first" chain              |
 | Clarification               | None                     | Agent asks user to clarify ambiguous course names                           |

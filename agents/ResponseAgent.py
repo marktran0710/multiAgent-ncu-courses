@@ -119,10 +119,35 @@ class ResponseAgent:
         self,
         verdict: JudgeVerdict | None,
         course_map: dict[str, Course],
+        locked_results: list[RetrievalResult] | None = None,
+        profile: UserProfile | None = None,
     ) -> str:
         if verdict and verdict.best_course_id in course_map:
             best = course_map[verdict.best_course_id]
             return f"I recommend [{best.id}] {best.name} because {verdict.reasoning}"
+        if locked_results:
+            preferred_language = profile.preferred_language if profile else None
+            candidates = [
+                r for r in locked_results
+                if not preferred_language
+                or (r.course.language or "Chinese").lower() == preferred_language.lower()
+            ]
+            closest = candidates[0] if candidates else locked_results[0]
+            course = closest.course
+            lines = [
+                f"The closest match is [{course.id}] {course.name}, but it is not eligible for your current profile yet.",
+                f"It is taught in {course.language or 'Chinese'} and covers {course.description}",
+            ]
+            if closest.missing_prereqs:
+                missing = [
+                    f"{pid} ({course_map[pid].name})" if pid in course_map else pid
+                    for pid in closest.missing_prereqs
+                ]
+                lines.append(f"Complete first: {', '.join(missing)}.")
+            elif closest.filter_reason:
+                lines.append(f"Reason: {closest.filter_reason}")
+            lines.append("Share completed courses if you have already met any of these prerequisites.")
+            return "\n".join(lines)
         return (
             "I couldn't find an eligible course based on your current profile. "
             "To help me give better recommendations, try telling me:\n"
