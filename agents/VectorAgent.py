@@ -4,6 +4,7 @@
 
 
 import math
+import os
 
 import chromadb
 from chromadb.config import Settings
@@ -15,11 +16,19 @@ from models.UserProfile import UserProfile
 
 
 
-try:
-    from sentence_transformers import SentenceTransformer
-    _ST_AVAILABLE = True
-except ImportError:
-    print("Optional: pip install sentence-transformers for better local embeddings")
+ENABLE_TRANSFORMER_EMBEDDINGS = os.environ.get(
+    "ENABLE_TRANSFORMER_EMBEDDINGS", "false"
+).lower() in {"1", "true", "yes"}
+
+if ENABLE_TRANSFORMER_EMBEDDINGS:
+    try:
+        from sentence_transformers import SentenceTransformer
+        _ST_AVAILABLE = True
+    except ImportError:
+        print("Optional: pip install sentence-transformers for better local embeddings")
+        _ST_AVAILABLE = False
+else:
+    SentenceTransformer = None
     _ST_AVAILABLE = False
 
 
@@ -45,6 +54,8 @@ class VectorAgent:
                 print(f"[{self.name}] WARNING: SentenceTransformer load failed ({exc}). Using TF-IDF fallback.")
                 self._use_transformer = False
         else:
+            if not ENABLE_TRANSFORMER_EMBEDDINGS:
+                print(f"[{self.name}] SentenceTransformer disabled. Using TF-IDF fallback.")
             self._use_transformer = False
 
         self._build_index(courses)

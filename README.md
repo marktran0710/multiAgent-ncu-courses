@@ -274,6 +274,7 @@ GROQ_API_KEY=your_groq_key_here
 GEMINI_API_KEY=your_gemini_key_here
 ADMIN_PASSWORD=choose_a_strong_admin_password
 ADMIN_BYPASS_ENABLED=false
+ENABLE_TRANSFORMER_EMBEDDINGS=false
 ```
 
 Get your keys at:
@@ -299,6 +300,8 @@ uvicorn api:app --host 127.0.0.1 --port 8010
 
 For local classroom demos only, set `ADMIN_BYPASS_ENABLED=true` to let Admin Mode open without a password. Keep it `false` for deployed/public environments.
 
+`ENABLE_TRANSFORMER_EMBEDDINGS=false` keeps deployment lightweight and uses the built-in TF-IDF semantic fallback. Set it to `true` only on hosts with enough memory/disk and install `sentence-transformers`.
+
 ### Deployment
 
 This repo includes deployment files for common hosts:
@@ -314,6 +317,7 @@ GROQ_API_KEY=your_groq_key_here
 GEMINI_API_KEY=your_gemini_key_here
 ADMIN_PASSWORD=choose_a_strong_admin_password
 ADMIN_BYPASS_ENABLED=false
+ENABLE_TRANSFORMER_EMBEDDINGS=false
 ```
 
 Render deployment:

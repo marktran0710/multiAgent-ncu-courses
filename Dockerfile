@@ -5,6 +5,7 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 ENV PIP_NO_CACHE_DIR=1
 ENV ADMIN_BYPASS_ENABLED=false
+ENV ENABLE_TRANSFORMER_EMBEDDINGS=false
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential git \

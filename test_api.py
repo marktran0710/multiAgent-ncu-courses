@@ -248,6 +248,12 @@ class TestApiRoutesAndAdminLogic:
         assert client.get("/").status_code == 200
         assert client.get("/admin").status_code == 200
 
+    def test_healthz_endpoint(self):
+        client = TestClient(app)
+        response = client.get("/healthz")
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+
     def test_admin_login_success_and_failure(self):
         client = TestClient(app)
         success = client.post("/admin/login", json={"password": "admin123"})

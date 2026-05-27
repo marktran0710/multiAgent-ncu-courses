@@ -4,22 +4,17 @@
 
 import json
 import os
-import os
 import re
 
 from dotenv import load_dotenv
 from groq import Groq
 
-from groq import Groq
-from config.main import GROQ_DEFAULT_MODEL
 from config.main import GROQ_DEFAULT_MODEL
 
 from models.Course import Course
 from models.RetrievalResult import RetrievalResult
 from difflib import SequenceMatcher
-import json
 import google.genai as genai
-import os
 from google.genai import types
 
 
@@ -76,7 +71,28 @@ def check_prerequisites_met(course: Course, completed_courses: list[str]) -> tup
 #  Groq client + shared tool-call helper
 # ─────────────────────────────────────────────────────────────────────────────
 load_dotenv()
-groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+groq_client: Groq | None = None
+gemini_client: genai.Client | None = None
+
+
+def _get_groq_client() -> Groq:
+    global groq_client
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        raise RuntimeError("GROQ_API_KEY is not configured.")
+    if groq_client is None:
+        groq_client = Groq(api_key=api_key)
+    return groq_client
+
+
+def _get_gemini_client() -> genai.Client:
+    global gemini_client
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY is not configured.")
+    if gemini_client is None:
+        gemini_client = genai.Client(api_key=api_key)
+    return gemini_client
 
 def call_groq_with_tools(
     messages: list[dict],
@@ -90,7 +106,7 @@ def call_groq_with_tools(
     Raises RuntimeError if the model returns a plain-text response instead
     of a tool call.
     """
-    response = groq_client.chat.completions.create(
+    response = _get_groq_client().chat.completions.create(
         model=model,
         messages=messages,
         tools=tools,
@@ -115,9 +131,6 @@ def _is_similar_goal(self, new_goal: str, existing_goals: list[str], threshold: 
         if ratio >= threshold:
             return True
     return False
-
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-
 
 def call_gemini_with_tools(
     messages: list[dict],
@@ -172,7 +185,7 @@ def call_gemini_with_tools(
     )
 
     # ── call API ──────────────────────────────────────────────────────
-    response = client.models.generate_content(
+    response = _get_gemini_client().models.generate_content(
         model=model,
         contents=contents,
         config=config,

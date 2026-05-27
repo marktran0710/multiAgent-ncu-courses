@@ -163,6 +163,10 @@ async def get_user_interface():
     with open("static/index.html", "r", encoding="utf-8") as f:
         return f.read()
 
+@app.get("/healthz")
+async def healthz():
+    return {"status": "ok"}
+
 @app.get("/admin", response_class=HTMLResponse)
 async def get_admin_interface():
     with open("static/admin.html", "r", encoding="utf-8") as f:

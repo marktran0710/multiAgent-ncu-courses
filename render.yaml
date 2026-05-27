@@ -4,7 +4,7 @@ services:
     env: docker
     plan: free
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /
+    healthCheckPath: /healthz
     autoDeploy: true
     envVars:
       - key: GROQ_API_KEY
@@ -14,4 +14,6 @@ services:
       - key: ADMIN_PASSWORD
         generateValue: true
       - key: ADMIN_BYPASS_ENABLED
+        value: "false"
+      - key: ENABLE_TRANSFORMER_EMBEDDINGS
         value: "false"
