@@ -272,6 +272,8 @@ Then edit `.env`:
 ```
 GROQ_API_KEY=your_groq_key_here
 GEMINI_API_KEY=your_gemini_key_here
+ADMIN_PASSWORD=choose_a_strong_admin_password
+ADMIN_BYPASS_ENABLED=false
 ```
 
 Get your keys at:
@@ -289,11 +291,38 @@ Get your keys at:
 
 ```bash
 # Start the FastAPI server
-python api.py
+uvicorn api:app --host 127.0.0.1 --port 8010
 
-# Open browser to http://localhost:8000
-# Admin login: admin123
+# Open browser to http://127.0.0.1:8010
+# Admin login: use ADMIN_PASSWORD
 ```
+
+For local classroom demos only, set `ADMIN_BYPASS_ENABLED=true` to let Admin Mode open without a password. Keep it `false` for deployed/public environments.
+
+### Deployment
+
+This repo includes deployment files for common hosts:
+
+- `Dockerfile` for Docker, Fly.io, Railway, VPS, and other container hosts.
+- `render.yaml` for Render Blueprint deployments.
+- `Procfile` for platforms that use a web process command.
+
+Required production environment variables:
+
+```
+GROQ_API_KEY=your_groq_key_here
+GEMINI_API_KEY=your_gemini_key_here
+ADMIN_PASSWORD=choose_a_strong_admin_password
+ADMIN_BYPASS_ENABLED=false
+```
+
+Render deployment:
+
+1. Push this repo to GitHub.
+2. In Render, choose **New > Blueprint** and select this repository.
+3. Set `GROQ_API_KEY`, `GEMINI_API_KEY`, and `ADMIN_PASSWORD`.
+4. Confirm `ADMIN_BYPASS_ENABLED=false`.
+5. Deploy the web service.
 
 ### Command Line Interface
 

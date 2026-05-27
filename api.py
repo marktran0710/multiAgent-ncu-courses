@@ -8,6 +8,7 @@ import os
 import secrets
 from typing import Optional, Dict, Any
 from agents.OrchestratorAgent import CourseFinderOrchestrator
+from agents.RetrievalBenchmarkAgent import RetrievalBenchmarkAgent
 from models.UserProfile import RAW_COURSES, UserProfile, VALID_COURSE_IDS
 from models.Course import Course
 
@@ -338,6 +339,12 @@ async def get_logs(req: Request):
     if not is_admin_request(req):
         raise HTTPException(status_code=403, detail="Not authorized")
     return conversation_logs
+
+@app.get("/admin/benchmark")
+async def get_benchmark(req: Request):
+    if not is_admin_request(req):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return RetrievalBenchmarkAgent(orchestrator).run()
 
 @app.get("/admin/courses")
 async def get_courses(req: Request):

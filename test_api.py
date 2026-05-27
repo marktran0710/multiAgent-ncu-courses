@@ -222,6 +222,26 @@ class FakeCourseFinderOrchestrator:
         self.bm25_agent = type("FakeBM25", (), {"courses": [course]})()
 
 
+class FakeRetrievalBenchmarkAgent:
+    def __init__(self, orchestrator):
+        self.orchestrator = orchestrator
+
+    def run(self):
+        return {
+            "case_count": 1,
+            "top_k": 10,
+            "comparison": {
+                "legacy_best": {"label": "Past BM25 + Vector RAG0", "recall_at_3": 1.0},
+                "current": {"label": "Final weighted RRF fusion", "recall_at_3": 1.0},
+                "delta": {"recall_at_3": 0.0},
+                "case_counts": {"improved": 0, "same": 1, "regressed": 0},
+                "special_cases": [],
+            },
+            "summary": [{"method": "bm25_agent", "label": "BM25Agent", "recall_at_3": 1.0}],
+            "cases": [],
+        }
+
+
 class TestApiRoutesAndAdminLogic:
     def test_static_pages_render(self):
         client = TestClient(app)
@@ -363,6 +383,19 @@ class TestApiRoutesAndAdminLogic:
         assert denied.status_code == 403
         assert allowed.status_code == 200
         assert allowed.json() == [{"session_id": "s1"}]
+
+    def test_admin_benchmark_requires_admin_and_returns_metrics(self, monkeypatch):
+        client = TestClient(app)
+        monkeypatch.setattr(api_module, "RetrievalBenchmarkAgent", FakeRetrievalBenchmarkAgent)
+
+        denied = client.get("/admin/benchmark")
+        allowed = client.get("/admin/benchmark", cookies=admin_cookie())
+
+        assert denied.status_code == 403
+        assert allowed.status_code == 200
+        assert allowed.json()["summary"][0]["recall_at_3"] == 1.0
+        assert allowed.json()["comparison"]["legacy_best"]["label"] == "Past BM25 + Vector RAG0"
+        assert allowed.json()["comparison"]["current"]["label"] == "Final weighted RRF fusion"
 
     def test_admin_courses_require_admin_and_return_courses(self, monkeypatch):
         client = TestClient(app)

@@ -21,6 +21,7 @@ from models.JudgeVerdict import JudgeVerdict
 from keywords.OffTopicResponse import OFF_TOPIC_RESPONSE
 from function.main import tokenize, reciprocal_rank_fusion, check_prerequisites_met
 from agents.OrchestratorAgent import CourseFinderOrchestrator
+from agents.RetrievalBenchmarkAgent import RetrievalBenchmarkAgent
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -53,6 +54,30 @@ class TestPipelineEndToEnd:
         assert serialized[0]["standard_score"] == 10.0
         assert serialized[1]["standard_score"] == 0.0
         assert serialized[0]["score_unit"] == "0-10 normalized within method"
+
+    def test_retrieval_benchmark_scores_expected_course_rank(self):
+        orchestrator = CourseFinderOrchestrator()
+        courses = [orchestrator.course_map["CSIE4003"], orchestrator.course_map["CSIE4001"]]
+        results = [
+            RetrievalResult(courses[1], 0.9, "demo"),
+            RetrievalResult(courses[0], 0.8, "demo"),
+        ]
+
+        score = RetrievalBenchmarkAgent._score_case(results, ["CSIE4003"])
+
+        assert score["rank"] == 2
+        assert score["top1"] == 0
+        assert score["recall_at_3"] == 1
+        assert score["reciprocal_rank"] == 0.5
+
+    def test_retrieval_benchmark_compares_legacy_and_current_methods(self):
+        orchestrator = CourseFinderOrchestrator()
+        benchmark = RetrievalBenchmarkAgent(orchestrator).run(top_k=6)
+
+        assert benchmark["comparison"]["legacy_best"]["method"] == "legacy_bm25_vector_rag"
+        assert benchmark["comparison"]["current"]["method"] == "final_query_rag_fusion"
+        assert "special_cases" in benchmark["comparison"]
+        assert benchmark["comparison"]["case_counts"]["improved"] >= 0
 
     @patch("function.main.call_groq_with_tools")
     def test_beginner_gets_no_prereq_course(self, mock_groq):

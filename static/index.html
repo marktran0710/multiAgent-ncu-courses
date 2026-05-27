@@ -816,6 +816,39 @@
             font-size: 0.88rem;
         }
 
+        .benchmark-table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        .benchmark-table {
+            width: 100%;
+            min-width: 760px;
+            border-collapse: collapse;
+        }
+
+        .benchmark-table th,
+        .benchmark-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--line);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .benchmark-table th {
+            background: #f8fafc;
+            color: #334155;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+        }
+
+        .benchmark-score {
+            color: var(--navy);
+            font-weight: 850;
+        }
+
         .admin-search {
             width: min(420px, 100%);
             border: 1px solid #cbd5e1;
@@ -1028,6 +1061,7 @@
                         <button class="admin-tab active" data-admin-tab="courses" type="button">Courses</button>
                         <button class="admin-tab" data-admin-tab="add" type="button">Add Course</button>
                         <button class="admin-tab" data-admin-tab="logs" type="button">Logs</button>
+                        <button class="admin-tab" data-admin-tab="benchmark" type="button">Benchmark</button>
                     </div>
 
                     <section class="admin-panel active" id="adminPanelCourses">
@@ -1064,6 +1098,15 @@
                         </div>
                         <div class="admin-list" id="adminLogsList"></div>
                     </section>
+
+                    <section class="admin-panel" id="adminPanelBenchmark">
+                        <div class="admin-actions">
+                            <button class="primary-button" id="adminRunBenchmarkButton" type="button">Run Retrieval Benchmark</button>
+                        </div>
+                        <div class="admin-list" id="adminBenchmarkList">
+                            <div class="empty-state">Run the benchmark to compare all retrieval algorithms on fixed advising queries.</div>
+                        </div>
+                    </section>
                 </div>
             </div>
         </div>
@@ -1093,6 +1136,7 @@
         const adminCourseSearch = document.getElementById('adminCourseSearch');
         const adminCoursesList = document.getElementById('adminCoursesList');
         const adminLogsList = document.getElementById('adminLogsList');
+        const adminBenchmarkList = document.getElementById('adminBenchmarkList');
 
         const maxChars = 500;
         const promptGroups = {
@@ -1125,6 +1169,7 @@
         let realtimeSessionId = localStorage.getItem('ncu_realtime_session_id') || crypto.randomUUID();
         let adminCourses = [];
         let adminLogs = [];
+        let adminBenchmark = null;
         localStorage.setItem('ncu_realtime_session_id', realtimeSessionId);
 
         function init() {
@@ -1146,6 +1191,7 @@
             adminBypassButton.addEventListener('click', bypassAdminLogin);
             document.getElementById('adminLoadCoursesButton').addEventListener('click', loadAdminCourses);
             document.getElementById('adminLoadLogsButton').addEventListener('click', loadAdminLogs);
+            document.getElementById('adminRunBenchmarkButton').addEventListener('click', loadAdminBenchmark);
             document.getElementById('adminUpdateDataButton').addEventListener('click', updateAdminData);
             document.getElementById('adminAddCourseForm').addEventListener('submit', addAdminCourse);
             adminCourseSearch.addEventListener('input', renderAdminCourses);
@@ -1182,6 +1228,10 @@
                 const status = await response.json();
                 setAdminAuthenticated(Boolean(status.authenticated));
                 adminBypassButton.style.display = status.bypass_available ? 'inline-flex' : 'none';
+                if (!status.authenticated && status.bypass_available) {
+                    await bypassAdminLogin({ silent: true });
+                    return;
+                }
                 if (status.authenticated) {
                     await Promise.all([loadAdminCourses(), loadAdminLogs()]);
                 }
@@ -1200,8 +1250,10 @@
             if (!value) {
                 adminCoursesList.innerHTML = '';
                 adminLogsList.innerHTML = '';
+                adminBenchmarkList.innerHTML = '<div class="empty-state">Run the benchmark to compare all retrieval algorithms on fixed advising queries.</div>';
                 document.getElementById('adminCourseCount').textContent = '0';
                 document.getElementById('adminLogCount').textContent = '0';
+                adminBenchmark = null;
             }
         }
 
@@ -1224,14 +1276,16 @@
             }
         }
 
-        async function bypassAdminLogin() {
+        async function bypassAdminLogin(options = {}) {
             try {
                 const response = await fetch('/admin/dev-login', { method: 'POST' });
                 if (!response.ok) throw new Error('Local admin bypass is disabled');
                 document.getElementById('adminPasswordInput').value = '';
                 setAdminAuthenticated(true);
                 await Promise.all([loadAdminCourses(), loadAdminLogs()]);
-                showToast('Admin mode enabled with local bypass.');
+                if (!options.silent) {
+                    showToast('Admin mode enabled with local bypass.');
+                }
             } catch (error) {
                 showToast(error.message);
             }
@@ -1250,6 +1304,7 @@
             document.getElementById('adminPanelCourses').classList.toggle('active', tab === 'courses');
             document.getElementById('adminPanelAdd').classList.toggle('active', tab === 'add');
             document.getElementById('adminPanelLogs').classList.toggle('active', tab === 'logs');
+            document.getElementById('adminPanelBenchmark').classList.toggle('active', tab === 'benchmark');
         }
 
         async function loadAdminCourses() {
@@ -1380,6 +1435,170 @@
 
         function formatScore(score) {
             return typeof score === 'number' ? score.toFixed(5) : 'n/a';
+        }
+
+        async function loadAdminBenchmark() {
+            adminBenchmarkList.innerHTML = '<div class="empty-state">Running benchmark across all retrieval algorithms...</div>';
+            try {
+                const response = await fetch('/admin/benchmark');
+                if (!response.ok) throw new Error('Benchmark requires admin login');
+                adminBenchmark = await response.json();
+                renderAdminBenchmark();
+            } catch (error) {
+                adminBenchmarkList.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+                showToast(error.message);
+            }
+        }
+
+        function renderAdminBenchmark() {
+            if (!adminBenchmark || !adminBenchmark.summary) {
+                adminBenchmarkList.innerHTML = '<div class="empty-state">No benchmark results available.</div>';
+                return;
+            }
+
+            const best = adminBenchmark.summary[0];
+            const comparison = adminBenchmark.comparison || {};
+            const legacyBest = comparison.legacy_best || {};
+            const current = comparison.current || {};
+            const delta = comparison.delta || {};
+            const caseCounts = comparison.case_counts || {};
+            const specialCases = (comparison.special_cases || []).slice(0, 8).map((item) => {
+                const comp = item.comparison || {};
+                return `
+                    <tr>
+                        <td><strong>${escapeHtml(item.focus)}</strong><br><span class="admin-card-meta">${escapeHtml(item.query)}</span></td>
+                        <td>${formatRank(comp.legacy_rank)}<br><span class="admin-card-meta">${escapeHtml(comp.legacy_label || 'legacy')}</span></td>
+                        <td>${formatRank(comp.current_rank)}<br><span class="admin-card-meta">Current Query RAG</span></td>
+                        <td class="benchmark-score">${escapeHtml(formatRankDelta(comp.rank_delta))}</td>
+                        <td>${escapeHtml((comp.current_top_courses || []).slice(0, 3).join(', '))}</td>
+                    </tr>
+                `;
+            }).join('');
+            const summaryRows = adminBenchmark.summary.map((row) => `
+                <tr>
+                    <td><strong>${escapeHtml(row.label)}</strong></td>
+                    <td class="benchmark-score">${formatPercent(row.recall_at_3)}</td>
+                    <td>${formatPercent(row.top1_accuracy)}</td>
+                    <td>${formatPercent(row.recall_at_5)}</td>
+                    <td>${escapeHtml(row.mrr)}</td>
+                    <td>${escapeHtml(row.cases)}</td>
+                </tr>
+            `).join('');
+
+            const caseCards = (adminBenchmark.cases || []).map((item) => {
+                const topResults = (item.results || []).slice(0, 3).map((result) => `
+                    <li>${escapeHtml(result.label)}: rank ${escapeHtml(result.rank || 'miss')} · top ${escapeHtml((result.top_courses || []).join(', '))}</li>
+                `).join('');
+                return `
+                    <article class="admin-card">
+                        <div class="admin-card-title">${escapeHtml(item.focus)}</div>
+                        <div>${escapeHtml(item.query)}</div>
+                        <div class="admin-card-meta">Expected: ${escapeHtml((item.expected_ids || []).join(', '))}</div>
+                        <ol>${topResults}</ol>
+                    </article>
+                `;
+            }).join('');
+
+            adminBenchmarkList.innerHTML = `
+                <article class="admin-card">
+                    <div class="admin-card-title">${escapeHtml(comparison.title || 'Past vs Current Retrieval')}</div>
+                    <div class="admin-card-meta">${escapeHtml(comparison.baseline_note || 'Past version used BM25 and vector retrieval.')} ${escapeHtml(comparison.current_note || 'Current version uses Query RAG fusion.')}</div>
+                    <div class="benchmark-table-wrap">
+                        <table class="benchmark-table">
+                            <thead>
+                                <tr>
+                                    <th>Version</th>
+                                    <th>Method</th>
+                                    <th>Recall@3</th>
+                                    <th>Top-1</th>
+                                    <th>MRR</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Past BM25 + Vector RAG0</td>
+                                    <td><strong>${escapeHtml(legacyBest.label || 'BM25 / Vector')}</strong></td>
+                                    <td>${formatPercent(legacyBest.recall_at_3)}</td>
+                                    <td>${formatPercent(legacyBest.top1_accuracy)}</td>
+                                    <td>${escapeHtml(legacyBest.mrr ?? 'n/a')}</td>
+                                </tr>
+                                <tr>
+                                    <td>Current result</td>
+                                    <td><strong>${escapeHtml(current.label || 'Final Query RAG fusion')}</strong></td>
+                                    <td class="benchmark-score">${formatPercent(current.recall_at_3)} (${formatSignedPercent(delta.recall_at_3)})</td>
+                                    <td>${formatPercent(current.top1_accuracy)} (${formatSignedPercent(delta.top1_accuracy)})</td>
+                                    <td>${escapeHtml(current.mrr ?? 'n/a')} (${formatSignedNumber(delta.mrr)})</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="admin-card-meta">Special cases: ${escapeHtml(caseCounts.improved || 0)} improved · ${escapeHtml(caseCounts.same || 0)} same · ${escapeHtml(caseCounts.regressed || 0)} regressed.</div>
+                </article>
+                <article class="admin-card">
+                    <div class="admin-card-title">Special Case Comparison</div>
+                    <div class="benchmark-table-wrap">
+                        <table class="benchmark-table">
+                            <thead>
+                                <tr>
+                                    <th>Case</th>
+                                    <th>Past BM25/Vector Rank</th>
+                                    <th>Current Rank</th>
+                                    <th>Change</th>
+                                    <th>Current Top 3</th>
+                                </tr>
+                            </thead>
+                            <tbody>${specialCases}</tbody>
+                        </table>
+                    </div>
+                </article>
+                <article class="admin-card">
+                    <div class="admin-card-title">Retrieval Benchmark Summary</div>
+                    <div class="admin-card-meta">All methods for reference · ${escapeHtml(adminBenchmark.case_count)} fixed advising cases · Top-${escapeHtml(adminBenchmark.top_k)} rankings · best method: ${escapeHtml(best ? best.label : 'n/a')}</div>
+                    <div class="benchmark-table-wrap">
+                        <table class="benchmark-table">
+                            <thead>
+                                <tr>
+                                    <th>Method</th>
+                                    <th>Recall@3</th>
+                                    <th>Top-1</th>
+                                    <th>Recall@5</th>
+                                    <th>MRR</th>
+                                    <th>Cases</th>
+                                </tr>
+                            </thead>
+                            <tbody>${summaryRows}</tbody>
+                        </table>
+                    </div>
+                    <div class="admin-card-meta">Recall@3 is the main retrieval-quality signal: an expected course appears within the first three ranked results.</div>
+                </article>
+                ${caseCards}
+            `;
+        }
+
+        function formatPercent(value) {
+            return typeof value === 'number' ? `${Math.round(value * 100)}%` : 'n/a';
+        }
+
+        function formatSignedPercent(value) {
+            if (typeof value !== 'number') return 'n/a';
+            const rounded = Math.round(value * 100);
+            return `${rounded > 0 ? '+' : ''}${rounded}%`;
+        }
+
+        function formatSignedNumber(value) {
+            if (typeof value !== 'number') return 'n/a';
+            return `${value > 0 ? '+' : ''}${value.toFixed(3)}`;
+        }
+
+        function formatRank(rank) {
+            return rank ? `#${rank}` : 'miss';
+        }
+
+        function formatRankDelta(delta) {
+            if (typeof delta !== 'number') return 'n/a';
+            if (delta > 0) return `+${delta} ranks`;
+            if (delta < 0) return `${delta} ranks`;
+            return 'same';
         }
 
         async function updateAdminData() {

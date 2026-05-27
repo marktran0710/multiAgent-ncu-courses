@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: multiagent-ncu-courses
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: ADMIN_BYPASS_ENABLED
+        value: "false"
