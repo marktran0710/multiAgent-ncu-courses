@@ -30,83 +30,102 @@
 
 ## Architecture
 
-```
-Web UI (HTML/JS)
-  |
-  v
-FastAPI Backend
-  |-- User Mode
-  |     |-- /chat        minimal response
-  |     |-- /profile     auto-updated profile
-  |     `-- Profile Sidebar
-  |
-  `-- Admin Mode
-        |-- /admin/*                login, courses, logs
-        |-- POST /admin/add_course  course validation
-        |-- GET /admin/logs         full conversation details
-        `-- Course Listing
+The system has three main lanes:
 
-User free-text input (single-turn or multi-turn follow-up)
-  |
-  v
-+------------------------------------------------------------+
-| IntakeAgent (Groq or Gemini function call)                 |
-| Tool: extract_user_profile                                 |
-| First turn: builds fresh UserProfile                       |
-| Follow-up: merges changes via UserProfile.update()         |
-| Off-topic: rejected on first message only                  |
-| Ambiguous: asks user to clarify course name                |
-| Output: degree_level, academic_year, completed_courses,    |
-|         goals, constraints, search_query, language         |
-+------------------------------------------------------------+
-  |
-  v
-profile.search_query
-  |
-  v
-+------------------------------------------------------------+
-| Query RAG Retrieval: 8 ways                                |
-|                                                            |
-| 1. BM25Agent                     keyword retrieval         |
-| 2. VectorAgent                   Sentence-Transformers     |
-|                                  + ChromaDB                |
-| 3. BM25 + Multi Match (MQ)       keyword hybrid            |
-| 4. BM25 + Best Fields (BF)       keyword + field aware     |
-| 5. KNN + Multi Match             dense semantic            |
-| 6. KNN + Best Fields             dense semantic + field    |
-| 7. Sparse Encoder + Multi Match  sparse semantic           |
-| 8. Sparse Encoder + Best Fields  strongest method          |
-+------------------------------------------------------------+
-  |
-  v
-+------------------------------------------------------------+
-| FusionAgent                                                |
-| Weighted RRF over all 8 retrieval ways                     |
-| + prerequisite filter                                      |
-| + degree filter                                            |
-| + language filter                                          |
-| Output: eligible / locked split                            |
-+------------------------------------------------------------+
-  |
-  v
-+------------------------------------------------------------+
-| JudgeAgent (Groq or Gemini function call)                  |
-| Tool: select_best_course                                   |
-| Input: UserProfile + RRF-ranked eligible candidates        |
-| Hallucination guard: scans top-3 if ID invalid             |
-| Schedule constraints treated as hard filter                |
-| Never recommends already-completed courses                 |
-| Output: best_course_id, runner_up_id, reasoning, confidence|
-+------------------------------------------------------------+
-  |
-  v
-+------------------------------------------------------------+
-| ResponseAgent                                              |
-| Full output + suggestions                                  |
-| Minimal output                                             |
-| Eligible list                                              |
-| Locked list                                                |
-+------------------------------------------------------------+
+- **User lane**: real-time chat, profile memory, course recommendation.
+- **Admin lane**: course CRUD, logs, benchmark view, and rerun controls.
+- **Retrieval lane**: old BM25/vector retrieval plus six new Query RAG methods, fused into one normalized ranking.
+
+```mermaid
+flowchart TD
+    user["Student / Admin Browser"]
+    ui["FastAPI Web UI<br/>/chat, /ws/chat, /profile, /benchmark, /admin"]
+    orch["OrchestratorAgent<br/>session memory + pipeline coordinator"]
+
+    user --> ui --> orch
+
+    subgraph profile["1. Understand the request"]
+        intake["IntakeAgent<br/>Groq/Gemini function call"]
+        profileModel["UserProfile<br/>degree, year, completed courses,<br/>goals, schedule, language priority"]
+        intake --> profileModel
+    end
+
+    subgraph retrieval["2. Retrieve candidates with 8 methods"]
+        query["profile.search_query"]
+
+        subgraph old["Old baseline methods"]
+            bm25["1. BM25Agent<br/>keyword top-6"]
+            vector["2. VectorAgent<br/>Sentence-Transformers + ChromaDB"]
+        end
+
+        subgraph new["QueryRAGAgent additions"]
+            mq1["3. BM25 + Multi Match<br/>keyword hybrid"]
+            bf1["4. BM25 + Best Fields<br/>field-aware keyword"]
+            mq2["5. KNN + Multi Match<br/>dense semantic"]
+            bf2["6. KNN + Best Fields<br/>dense + best field"]
+            mq3["7. Sparse Encoder + Multi Match<br/>sparse semantic"]
+            bf3["8. Sparse Encoder + Best Fields<br/>strongest single method"]
+        end
+
+        query --> bm25
+        query --> vector
+        query --> mq1
+        query --> bf1
+        query --> mq2
+        query --> bf2
+        query --> mq3
+        query --> bf3
+    end
+
+    subgraph ranking["3. Normalize, fuse, and filter"]
+        fusion["FusionAgent<br/>weighted reciprocal-rank fusion"]
+        filters["Eligibility filters<br/>completed courses, prerequisites,<br/>degree level, teaching language, schedule"]
+        split["Candidate split<br/>eligible recommendations + locked courses"]
+        fusion --> filters --> split
+    end
+
+    subgraph decision["4. Decide and evaluate the answer"]
+        judge["JudgeAgent<br/>select_best_course tool"]
+        evaluator["ResponseEvaluationAgent<br/>second-model answer check"]
+        response["ResponseAgent<br/>chat answer + suggestions + ranked evidence"]
+        judge --> evaluator --> response
+    end
+
+    profileModel --> query
+    bm25 --> fusion
+    vector --> fusion
+    mq1 --> fusion
+    bf1 --> fusion
+    mq2 --> fusion
+    bf2 --> fusion
+    mq3 --> fusion
+    bf3 --> fusion
+    split --> judge
+    profileModel --> judge
+    response --> ui --> user
+
+    admin["Admin tools<br/>course editor, logs, benchmark, rerun RAG"]
+    ui --> admin
+    admin --> orch
+```
+
+### Retrieval Comparison Flow
+
+```mermaid
+flowchart LR
+    q["Same benchmark query set"]
+
+    q --> oldBm25["BM25Agent"]
+    q --> oldVector["VectorAgent"]
+    oldBm25 --> oldFusion["Old FusionAgent<br/>BM25 + Vector only"]
+    oldVector --> oldFusion
+
+    q --> current["Current Query RAG<br/>8 retrieval methods"]
+    current --> currentFusion["Current FusionAgent<br/>weighted RRF + filters"]
+
+    oldFusion --> compare["BenchmarkAgent<br/>Top-1, Recall@3, Recall@5, MRR,<br/>rank change, percent improvement"]
+    currentFusion --> compare
+    compare --> page["/benchmark page"]
 ```
 
 ---
