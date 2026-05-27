@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 INDEX_HTML = ROOT / "static" / "index.html"
+BENCHMARK_HTML = ROOT / "static" / "benchmark.html"
 
 
 class StaticHtmlParser(HTMLParser):
@@ -50,6 +51,7 @@ class TestInternationalAdvisorUI(unittest.TestCase):
             "messageInput",
             "sendButton",
             "clearChatButton",
+            "benchmarkPageButton",
             "adminModeButton",
             "adminOverlay",
             "adminLoginForm",
@@ -123,7 +125,7 @@ class TestInternationalAdvisorUI(unittest.TestCase):
         self.assertIn("/admin/benchmark", self.html)
         self.assertIn("Run Retrieval Benchmark", self.visible_text)
         self.assertIn("function renderAdminBenchmark()", self.html)
-        self.assertIn("Past BM25 + Vector RAG0", self.html)
+        self.assertIn("Past BM25 + Vector FusionAgent", self.html)
         self.assertIn("Special Case Comparison", self.html)
         self.assertIn("Current Query RAG", self.html)
 
@@ -135,6 +137,19 @@ class TestInternationalAdvisorUI(unittest.TestCase):
         self.assertIn("final_query_rag_fusion", self.html)
         self.assertIn("standard_score", self.html)
         self.assertIn("Raw scores use different units", self.html)
+
+    def test_public_benchmark_page_compares_old_and_current_versions(self):
+        html = BENCHMARK_HTML.read_text(encoding="utf-8")
+        parser = StaticHtmlParser()
+        parser.feed(html)
+        visible_text = " ".join(parser.text)
+
+        self.assertIn("Benchmark: Old FusionAgent vs Current Query RAG", visible_text)
+        self.assertIn("BM25Agent + VectorAgent using FusionAgent", visible_text)
+        self.assertIn("percentage_point_change", html)
+        self.assertIn("relative_percent_change", html)
+        self.assertIn("/benchmark/data", html)
+        self.assertIn("Special Cases", visible_text)
 
     def test_no_old_generic_branding_remains(self):
         self.assertNotIn("<h1>Course Finder</h1>", self.html)

@@ -167,6 +167,15 @@ async def get_user_interface():
 async def healthz():
     return {"status": "ok"}
 
+@app.get("/benchmark", response_class=HTMLResponse)
+async def get_benchmark_page():
+    with open("static/benchmark.html", "r", encoding="utf-8") as f:
+        return f.read()
+
+@app.get("/benchmark/data")
+async def get_public_benchmark_data():
+    return RetrievalBenchmarkAgent(orchestrator).run()
+
 @app.get("/admin", response_class=HTMLResponse)
 async def get_admin_interface():
     with open("static/admin.html", "r", encoding="utf-8") as f:

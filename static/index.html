@@ -951,6 +951,7 @@
             </div>
             <div class="topbar-actions">
                 <div class="status-pill"><span class="status-dot"></span><span id="connectionStatus">Ready</span></div>
+                <button class="ghost-button" id="benchmarkPageButton" type="button">Benchmark</button>
                 <button class="ghost-button" id="adminModeButton" type="button">Admin</button>
                 <button class="ghost-button" id="clearChatButton" type="button">Clear</button>
             </div>
@@ -1184,6 +1185,9 @@
         function bindEvents() {
             sendButton.addEventListener('click', sendMessage);
             document.getElementById('clearChatButton').addEventListener('click', clearChat);
+            document.getElementById('benchmarkPageButton').addEventListener('click', () => {
+                window.location.href = '/benchmark';
+            });
             document.getElementById('adminModeButton').addEventListener('click', openAdminMode);
             document.getElementById('adminCloseButton').addEventListener('click', closeAdminMode);
             adminLogoutButton.addEventListener('click', logoutAdmin);
@@ -1516,7 +1520,7 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>Past BM25 + Vector RAG0</td>
+                                    <td>Past BM25 + Vector FusionAgent</td>
                                     <td><strong>${escapeHtml(legacyBest.label || 'BM25 / Vector')}</strong></td>
                                     <td>${formatPercent(legacyBest.recall_at_3)}</td>
                                     <td>${formatPercent(legacyBest.top1_accuracy)}</td>

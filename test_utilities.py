@@ -18,6 +18,7 @@ from models.Course import Course
 from models.UserProfile import DEGREE_YEAR_RANGES, RAW_COURSES, VALID_COURSE_IDS, UserProfile
 from models.RetrievalResult import RetrievalResult
 from function.main import tokenize, reciprocal_rank_fusion, check_prerequisites_met
+import function.main as function_module
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -139,3 +140,57 @@ class TestRRF:
         b = [RetrievalResult(Course(**c), 0.5, "vector") for c in RAW_COURSES[2:5]]
         fused = reciprocal_rank_fusion(a, b)
         assert all(r.score > 0 for r in fused)
+
+
+class TestLazyApiClients:
+    def test_groq_client_requires_key_only_when_used(self, monkeypatch):
+        monkeypatch.delenv("GROQ_API_KEY", raising=False)
+        monkeypatch.setattr(function_module, "groq_client", None)
+
+        with pytest.raises(RuntimeError, match="GROQ_API_KEY"):
+            function_module._get_groq_client()
+
+    def test_gemini_client_requires_key_only_when_used(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.setattr(function_module, "gemini_client", None)
+
+        with pytest.raises(RuntimeError, match="GEMINI_API_KEY"):
+            function_module._get_gemini_client()
+
+    def test_groq_client_is_cached_after_creation(self, monkeypatch):
+        created = []
+
+        class FakeGroq:
+            def __init__(self, api_key):
+                self.api_key = api_key
+                created.append(api_key)
+
+        monkeypatch.setenv("GROQ_API_KEY", "unit-test-groq")
+        monkeypatch.setattr(function_module, "groq_client", None)
+        monkeypatch.setattr(function_module, "Groq", FakeGroq)
+
+        first = function_module._get_groq_client()
+        second = function_module._get_groq_client()
+
+        assert first is second
+        assert first.api_key == "unit-test-groq"
+        assert created == ["unit-test-groq"]
+
+    def test_gemini_client_is_cached_after_creation(self, monkeypatch):
+        created = []
+
+        class FakeGeminiClient:
+            def __init__(self, api_key):
+                self.api_key = api_key
+                created.append(api_key)
+
+        monkeypatch.setenv("GEMINI_API_KEY", "unit-test-gemini")
+        monkeypatch.setattr(function_module, "gemini_client", None)
+        monkeypatch.setattr(function_module.genai, "Client", FakeGeminiClient)
+
+        first = function_module._get_gemini_client()
+        second = function_module._get_gemini_client()
+
+        assert first is second
+        assert first.api_key == "unit-test-gemini"
+        assert created == ["unit-test-gemini"]

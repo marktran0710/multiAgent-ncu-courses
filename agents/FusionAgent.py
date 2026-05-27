@@ -12,13 +12,20 @@ class FusionAgent:
 
     name = "FusionAgent"
 
+    def fuse_rankings(
+        self,
+        bm25_results: list[RetrievalResult],
+        vector_results: list[RetrievalResult],
+    ) -> list[RetrievalResult]:
+        return reciprocal_rank_fusion(bm25_results, vector_results)
+
     def process(
         self,
         bm25_results: list[RetrievalResult],
         vector_results: list[RetrievalResult],
         profile: UserProfile,                          # <-- add this
     ) -> tuple[list[RetrievalResult], list[RetrievalResult]]:   # <-- (eligible, locked)
-        fused = reciprocal_rank_fusion(bm25_results, vector_results)
+        fused = self.fuse_rankings(bm25_results, vector_results)
         return self.filter_results(fused, profile)
 
     def process_many(

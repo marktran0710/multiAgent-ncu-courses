@@ -70,7 +70,7 @@ class RetrievalBenchmarkAgent:
     METHOD_LABELS = {
         "bm25_agent": "BM25Agent (keyword)",
         "vector_agent": "VectorAgent (semantic)",
-        "legacy_bm25_vector_rag": "Past BM25 + Vector RAG0",
+        "legacy_bm25_vector_rag": "Past BM25 + Vector FusionAgent",
         "bm25_multi_match": "BM25 + Multi Match (MQ)",
         "bm25_best_fields": "BM25 + Best Fields (BF)",
         "knn_multi_match": "KNN + Multi Match",
@@ -100,13 +100,10 @@ class RetrievalBenchmarkAgent:
                 "vector_agent": vector_results,
                 **query_rankings,
             }
-            legacy_fused = self.orchestrator.query_rag_agent.fuse(
-                {
-                    "bm25_agent": bm25_results,
-                    "vector_agent": vector_results,
-                },
-                top_k=top_k,
-            )
+            legacy_fused = self.orchestrator.fusion_agent.fuse_rankings(
+                bm25_results,
+                vector_results,
+            )[:top_k]
             for result in legacy_fused:
                 result.source = self.LEGACY_FUSION_METHOD
             fused = self.orchestrator.query_rag_agent.fuse(all_rankings, top_k=top_k)
@@ -271,7 +268,7 @@ class RetrievalBenchmarkAgent:
 
         return {
             "title": "Past version vs current Query RAG",
-            "baseline_note": "Past version used BM25Agent + VectorAgent fusion only.",
+            "baseline_note": "Past version used BM25Agent + VectorAgent through FusionAgent only.",
             "current_note": "Current version adds six Query RAG methods and weighted RRF fusion.",
             "legacy_methods": legacy_rows,
             "legacy_best": by_method[self.LEGACY_FUSION_METHOD],
@@ -283,6 +280,14 @@ class RetrievalBenchmarkAgent:
                 "recall_at_5": round(current["recall_at_5"] - by_method[self.LEGACY_FUSION_METHOD]["recall_at_5"], 3),
                 "mrr": round(current["mrr"] - by_method[self.LEGACY_FUSION_METHOD]["mrr"], 3),
             },
+            "percentage_point_change": self._percentage_point_change(
+                by_method[self.LEGACY_FUSION_METHOD],
+                current,
+            ),
+            "relative_percent_change": self._relative_percent_change(
+                by_method[self.LEGACY_FUSION_METHOD],
+                current,
+            ),
             "case_counts": {
                 "improved": len(improvements),
                 "same": len(same),
@@ -290,3 +295,21 @@ class RetrievalBenchmarkAgent:
             },
             "special_cases": improvements + regressions + same,
         }
+
+    @staticmethod
+    def _percentage_point_change(old: dict, new: dict) -> dict:
+        return {
+            metric: round((new[metric] - old[metric]) * 100, 1)
+            for metric in ("top1_accuracy", "recall_at_3", "recall_at_5", "mrr")
+        }
+
+    @staticmethod
+    def _relative_percent_change(old: dict, new: dict) -> dict:
+        changes = {}
+        for metric in ("top1_accuracy", "recall_at_3", "recall_at_5", "mrr"):
+            old_value = old[metric]
+            if old_value == 0:
+                changes[metric] = None
+            else:
+                changes[metric] = round(((new[metric] - old_value) / old_value) * 100, 1)
+        return changes

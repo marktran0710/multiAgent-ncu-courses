@@ -77,6 +77,8 @@ class TestPipelineEndToEnd:
         assert benchmark["comparison"]["legacy_best"]["method"] == "legacy_bm25_vector_rag"
         assert benchmark["comparison"]["current"]["method"] == "final_query_rag_fusion"
         assert "special_cases" in benchmark["comparison"]
+        assert "percentage_point_change" in benchmark["comparison"]
+        assert "relative_percent_change" in benchmark["comparison"]
         assert benchmark["comparison"]["case_counts"]["improved"] >= 0
 
     @patch("function.main.call_groq_with_tools")

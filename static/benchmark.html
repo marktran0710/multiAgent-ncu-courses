@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NCU Course Advisor Benchmark</title>
+    <style>
+        :root {
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --bg: #f3f6f8;
+            --panel: #ffffff;
+            --ink: #172033;
+            --muted: #5f6f82;
+            --line: #d9e1ea;
+            --navy: #10243e;
+            --teal: #087f7b;
+            --blue: #1f5f99;
+            --rose: #be123c;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--bg);
+            color: var(--ink);
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 24px;
+            background: var(--navy);
+            color: #ffffff;
+        }
+
+        .topbar h1 {
+            margin: 0;
+            font-size: 1.08rem;
+        }
+
+        .topbar p {
+            margin: 3px 0 0;
+            color: #cbd5e1;
+            font-size: 0.9rem;
+        }
+
+        .ghost-button,
+        .primary-button {
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            border-radius: 8px;
+            padding: 9px 12px;
+            background: transparent;
+            color: inherit;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .primary-button {
+            border-color: var(--teal);
+            background: var(--teal);
+            color: #ffffff;
+        }
+
+        .page {
+            width: min(1180px, 100%);
+            margin: 0 auto;
+            padding: 18px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            padding: 16px;
+        }
+
+        .card h2,
+        .card h3 {
+            margin: 0 0 8px;
+        }
+
+        .muted {
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .metric {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 12px;
+            background: #f8fafc;
+        }
+
+        .metric span {
+            display: block;
+            color: var(--muted);
+            font-size: 0.78rem;
+            font-weight: 850;
+            text-transform: uppercase;
+        }
+
+        .metric strong {
+            display: block;
+            margin-top: 6px;
+            font-size: 1.45rem;
+        }
+
+        .metric small {
+            display: block;
+            margin-top: 4px;
+            color: var(--muted);
+        }
+
+        .increase {
+            color: var(--teal);
+        }
+
+        .decrease {
+            color: var(--rose);
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            min-width: 820px;
+            border-collapse: collapse;
+            background: #ffffff;
+        }
+
+        th,
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--line);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #f8fafc;
+            color: #334155;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+        }
+
+        .pill {
+            display: inline-flex;
+            border-radius: 999px;
+            padding: 3px 8px;
+            background: #e6f4f1;
+            color: #075f5b;
+            font-size: 0.78rem;
+            font-weight: 850;
+        }
+
+        @media (max-width: 780px) {
+            .topbar {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .metric-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header class="topbar">
+        <div>
+            <h1>Benchmark: Old FusionAgent vs Current Query RAG</h1>
+            <p>BM25Agent + VectorAgent using FusionAgent compared with the current 8-way retrieval pipeline.</p>
+        </div>
+        <button class="ghost-button" type="button" onclick="window.location.href='/'">Back to Chat</button>
+    </header>
+
+    <main class="page">
+        <section class="card">
+            <h2>Result Difference</h2>
+            <p class="muted" id="summaryText">Loading benchmark comparison...</p>
+            <div class="metric-grid" id="metricGrid"></div>
+        </section>
+
+        <section class="card">
+            <h2>Old vs Current</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Version</th>
+                            <th>Method</th>
+                            <th>Top-1</th>
+                            <th>Recall@3</th>
+                            <th>Recall@5</th>
+                            <th>MRR</th>
+                        </tr>
+                    </thead>
+                    <tbody id="comparisonRows"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Special Cases</h2>
+            <p class="muted">Each case compares where the first expected course appears in the old result and the current result.</p>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Case</th>
+                            <th>Expected</th>
+                            <th>Old Rank</th>
+                            <th>Current Rank</th>
+                            <th>Change</th>
+                            <th>Old Top 3</th>
+                            <th>Current Top 3</th>
+                        </tr>
+                    </thead>
+                    <tbody id="caseRows"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const metricGrid = document.getElementById('metricGrid');
+        const comparisonRows = document.getElementById('comparisonRows');
+        const caseRows = document.getElementById('caseRows');
+        const summaryText = document.getElementById('summaryText');
+
+        const metrics = [
+            ['top1_accuracy', 'Top-1'],
+            ['recall_at_3', 'Recall@3'],
+            ['recall_at_5', 'Recall@5'],
+            ['mrr', 'MRR']
+        ];
+
+        loadBenchmark();
+
+        async function loadBenchmark() {
+            try {
+                const response = await fetch('/benchmark/data');
+                if (!response.ok) throw new Error('Benchmark data unavailable');
+                renderBenchmark(await response.json());
+            } catch (error) {
+                summaryText.textContent = error.message;
+            }
+        }
+
+        function renderBenchmark(data) {
+            const comparison = data.comparison || {};
+            const oldResult = comparison.legacy_best || {};
+            const current = comparison.current || {};
+            const pointChange = comparison.percentage_point_change || {};
+            const relativeChange = comparison.relative_percent_change || {};
+            const counts = comparison.case_counts || {};
+
+            summaryText.textContent = `${data.case_count} fixed advising cases. Current Query RAG improved ${counts.improved || 0}, matched ${counts.same || 0}, and regressed ${counts.regressed || 0} compared with old BM25Agent + VectorAgent FusionAgent.`;
+
+            metricGrid.innerHTML = metrics.map(([key, label]) => {
+                const points = pointChange[key] ?? 0;
+                const relative = relativeChange[key];
+                const trend = points > 0 ? 'increase' : points < 0 ? 'decrease' : '';
+                return `
+                    <div class="metric">
+                        <span>${escapeHtml(label)}</span>
+                        <strong class="${trend}">${formatSigned(points)} pp</strong>
+                        <small>relative change: ${formatRelative(relative)}</small>
+                        <small>old ${formatMetric(oldResult[key])} -> current ${formatMetric(current[key])}</small>
+                    </div>
+                `;
+            }).join('');
+
+            comparisonRows.innerHTML = `
+                ${renderComparisonRow('Old version', oldResult)}
+                ${renderComparisonRow('Current version', current)}
+            `;
+
+            caseRows.innerHTML = (comparison.special_cases || []).map((item) => {
+                const comp = item.comparison || {};
+                return `
+                    <tr>
+                        <td><strong>${escapeHtml(item.focus)}</strong><br><span class="muted">${escapeHtml(item.query)}</span></td>
+                        <td>${escapeHtml((item.expected_ids || []).join(', '))}</td>
+                        <td>${formatRank(comp.legacy_rank)}<br><span class="muted">${escapeHtml(comp.legacy_label || '')}</span></td>
+                        <td>${formatRank(comp.current_rank)}<br><span class="muted">${escapeHtml(comp.current_label || '')}</span></td>
+                        <td><span class="pill">${escapeHtml(formatRankDelta(comp.rank_delta))}</span></td>
+                        <td>${escapeHtml((comp.legacy_top_courses || []).slice(0, 3).join(', '))}</td>
+                        <td>${escapeHtml((comp.current_top_courses || []).slice(0, 3).join(', '))}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderComparisonRow(version, row) {
+            return `
+                <tr>
+                    <td>${escapeHtml(version)}</td>
+                    <td><strong>${escapeHtml(row.label || 'n/a')}</strong></td>
+                    <td>${formatMetric(row.top1_accuracy)}</td>
+                    <td>${formatMetric(row.recall_at_3)}</td>
+                    <td>${formatMetric(row.recall_at_5)}</td>
+                    <td>${escapeHtml(row.mrr ?? 'n/a')}</td>
+                </tr>
+            `;
+        }
+
+        function formatMetric(value) {
+            return typeof value === 'number' ? `${Math.round(value * 100)}%` : 'n/a';
+        }
+
+        function formatSigned(value) {
+            if (typeof value !== 'number') return 'n/a';
+            return `${value > 0 ? '+' : ''}${value.toFixed(1)}`;
+        }
+
+        function formatRelative(value) {
+            if (typeof value !== 'number') return 'n/a';
+            return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
+        }
+
+        function formatRank(rank) {
+            return rank ? `#${rank}` : 'miss';
+        }
+
+        function formatRankDelta(delta) {
+            if (typeof delta !== 'number') return 'n/a';
+            if (delta > 0) return `+${delta} ranks`;
+            if (delta < 0) return `${delta} ranks`;
+            return 'same';
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
+        }
+    </script>
+</body>
+
+</html>

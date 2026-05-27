@@ -231,9 +231,11 @@ class FakeRetrievalBenchmarkAgent:
             "case_count": 1,
             "top_k": 10,
             "comparison": {
-                "legacy_best": {"label": "Past BM25 + Vector RAG0", "recall_at_3": 1.0},
+                "legacy_best": {"label": "Past BM25 + Vector FusionAgent", "recall_at_3": 1.0},
                 "current": {"label": "Final weighted RRF fusion", "recall_at_3": 1.0},
                 "delta": {"recall_at_3": 0.0},
+                "percentage_point_change": {"recall_at_3": 0.0},
+                "relative_percent_change": {"recall_at_3": 0.0},
                 "case_counts": {"improved": 0, "same": 1, "regressed": 0},
                 "special_cases": [],
             },
@@ -400,8 +402,20 @@ class TestApiRoutesAndAdminLogic:
         assert denied.status_code == 403
         assert allowed.status_code == 200
         assert allowed.json()["summary"][0]["recall_at_3"] == 1.0
-        assert allowed.json()["comparison"]["legacy_best"]["label"] == "Past BM25 + Vector RAG0"
+        assert allowed.json()["comparison"]["legacy_best"]["label"] == "Past BM25 + Vector FusionAgent"
         assert allowed.json()["comparison"]["current"]["label"] == "Final weighted RRF fusion"
+
+    def test_public_benchmark_page_and_data_render(self, monkeypatch):
+        client = TestClient(app)
+        monkeypatch.setattr(api_module, "RetrievalBenchmarkAgent", FakeRetrievalBenchmarkAgent)
+
+        page = client.get("/benchmark")
+        data = client.get("/benchmark/data")
+
+        assert page.status_code == 200
+        assert "Old FusionAgent vs Current Query RAG" in page.text
+        assert data.status_code == 200
+        assert data.json()["comparison"]["percentage_point_change"]["recall_at_3"] == 0.0
 
     def test_admin_courses_require_admin_and_return_courses(self, monkeypatch):
         client = TestClient(app)

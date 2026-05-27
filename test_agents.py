@@ -172,6 +172,23 @@ class TestVectorAgent:
         assert agent.collection is None
         assert len(results) == 3
 
+    def test_transformer_disabled_uses_tfidf_without_loading_model(self, monkeypatch, all_courses, fresh_profile):
+        import agents.VectorAgent as vector_module
+
+        def unexpected_model_load(*args, **kwargs):
+            raise AssertionError("SentenceTransformer should not load when disabled")
+
+        monkeypatch.setattr(vector_module, "ENABLE_TRANSFORMER_EMBEDDINGS", False)
+        monkeypatch.setattr(vector_module, "_ST_AVAILABLE", False)
+        monkeypatch.setattr(vector_module, "SentenceTransformer", unexpected_model_load)
+
+        agent = VectorAgent(all_courses)
+        results = agent.process(fresh_profile, top_k=3)
+
+        assert agent._use_transformer is False
+        assert agent.collection is None
+        assert len(results) == 3
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  6. FusionAgent — prerequisite filtering
@@ -217,6 +234,15 @@ class TestFusionAgent:
         locked_ids   = [r.course.id for r in locked]
         assert "CSIE1001" in eligible_ids   # no prereqs
         assert "CSIE2001" in locked_ids     # requires CSIE1001
+
+    def test_fuse_rankings_exposes_old_version_raw_rrf(self, fusion_agent):
+        bm25 = self._make_results(["CSIE4001", "CSIE4003"], "bm25")
+        vec = self._make_results(["CSIE4001", "CSIE4004"], "vector")
+
+        fused = fusion_agent.fuse_rankings(bm25, vec)
+
+        assert fused[0].course.id == "CSIE4001"
+        assert all(result.source == "fusion" for result in fused)
 
     def test_all_eligible_when_prereqs_met(self, fusion_agent, fresh_profile):
         # fresh_profile has CSIE1001, CSIE2001, CSIE1002, MATH2001 completed
