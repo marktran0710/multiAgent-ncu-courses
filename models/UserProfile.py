@@ -310,16 +310,37 @@ class UserProfile:
     constraints: list[str]
     search_query: str
     preferred_language: str | None = None
+    language_priority: str | None = None
 
     @staticmethod
     def _extract_preferred_language(constraints: list[str]) -> str | None:
+        language, _ = UserProfile._extract_language_preference(constraints)
+        return language
+
+    @staticmethod
+    def _extract_language_priority(constraints: list[str]) -> str | None:
+        _, priority = UserProfile._extract_language_preference(constraints)
+        return priority
+
+    @staticmethod
+    def _extract_language_preference(constraints: list[str]) -> tuple[str | None, str | None]:
         for keyword, normalized in [
             ("english", "English"),
             ("chinese", "Chinese"),
         ]:
-            if any(keyword in constraint.lower() for constraint in constraints):
-                return normalized
-        return None
+            matching = [constraint.lower() for constraint in constraints if keyword in constraint.lower()]
+            if matching:
+                hard_words = (
+                    "only", "must", "required", "require", "mandatory",
+                    "taught in", "taught by", "english-taught", "chinese-taught",
+                )
+                soft_words = ("prefer", "preferred", "preference", "better", "if possible")
+                if any(any(word in constraint for word in hard_words) for constraint in matching):
+                    return normalized, "required"
+                if any(any(word in constraint for word in soft_words) for constraint in matching):
+                    return normalized, "preferred"
+                return normalized, "preferred"
+        return None, None
 
     def _is_similar_goal(self, new_goal: str, existing_goals: list[str], threshold: float = 0.6) -> bool:
         # ↑ must be indented INSIDE the class — 4 spaces
@@ -389,6 +410,7 @@ class UserProfile:
                 if not any(r.lower() in c.lower() for r in removals)
             ] + additions
             self.preferred_language = self._extract_preferred_language(self.constraints)
+            self.language_priority = self._extract_language_priority(self.constraints)
 
         # ── search_query ──────────────────────────────────────────────────
         if "search_query" in args and args["search_query"].strip():
@@ -422,11 +444,12 @@ class UserProfile:
         goals        = "; ".join(self.goals)             if self.goals             else "not specified"
         constraints  = "; ".join(self.constraints)       if self.constraints       else "none"
         language     = self.preferred_language or "not specified"
+        language_priority = self.language_priority or "none"
 
         return (
             f"Degree     : {degree_label}\n"
             f"Year       : {self.academic_year}\n"
-            f"Language   : {language}\n"
+            f"Language   : {language} ({language_priority})\n"
             f"Completed  : {completed}\n"
             f"Goals      : {goals}\n"
             f"Constraints: {constraints}\n"

@@ -40,6 +40,20 @@ class TestPipelineEndToEnd:
         assert "CSIE2002" in ids
         assert "CSIE1001" in ids
 
+    def test_serialized_rankings_include_standard_score(self):
+        orchestrator = CourseFinderOrchestrator()
+        courses = list(orchestrator.course_map.values())[:2]
+        serialized = orchestrator._serialize_rankings([
+            RetrievalResult(courses[0], 20.0, "bm25"),
+            RetrievalResult(courses[1], 5.0, "bm25"),
+        ])
+
+        assert serialized[0]["rank"] == 1
+        assert serialized[0]["raw_score"] == 20.0
+        assert serialized[0]["standard_score"] == 10.0
+        assert serialized[1]["standard_score"] == 0.0
+        assert serialized[0]["score_unit"] == "0-10 normalized within method"
+
     @patch("function.main.call_groq_with_tools")
     def test_beginner_gets_no_prereq_course(self, mock_groq):
         """Freshman with no completed courses should only get courses with no prereqs."""

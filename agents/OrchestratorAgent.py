@@ -9,6 +9,7 @@ from agents.BM25 import BM25Agent
 from agents.FusionAgent import FusionAgent
 from agents.JudgeAgent import JudgeAgent
 from agents.QueryRAGAgent import QueryRAGAgent
+from agents.ResponseEvaluationAgent import ResponseEvaluationAgent
 from agents.ResponseAgent import ResponseAgent
 from agents.VectorAgent import VectorAgent
 from config.main import GROQ_DEFAULT_MODEL
@@ -47,6 +48,7 @@ class CourseFinderOrchestrator:
         self.query_rag_agent = QueryRAGAgent(courses, dense_agent=self.vector_agent)
         self.fusion_agent   = FusionAgent()
         self.response_agent = ResponseAgent()
+        self.evaluation_agent = ResponseEvaluationAgent(primary_provider=provider, primary_model=model)
 
     def _append_prerequisite_path(
         self,
@@ -78,6 +80,33 @@ class CourseFinderOrchestrator:
                 queue.extend(course.prerequisites)
 
         return bridged
+
+    @staticmethod
+    def _serialize_rankings(results: list[RetrievalResult]) -> list[dict]:
+        if not results:
+            return []
+
+        scores = [r.score for r in results]
+        low, high = min(scores), max(scores)
+
+        def standard_score(score: float, rank: int) -> float:
+            if high > low:
+                return round(((score - low) / (high - low)) * 10, 3)
+            return round(max(10 - (rank - 1), 1), 3)
+
+        return [
+            {
+                "rank": rank,
+                "id": r.course.id,
+                "name": r.course.name,
+                "raw_score": r.score,
+                "score": standard_score(r.score, rank),
+                "standard_score": standard_score(r.score, rank),
+                "score_unit": "0-10 normalized within method",
+                "source": r.source,
+            }
+            for rank, r in enumerate(results, start=1)
+        ]
 
     def _run_pipeline(
         self,
@@ -130,8 +159,7 @@ class CourseFinderOrchestrator:
                 locked_results=locked,
                 profile=profile,
             )
-            details = {
-                "eligible": [
+            eligible_details = [
                     {
                         "id": r.course.id,
                         "name": r.course.name,
@@ -139,8 +167,8 @@ class CourseFinderOrchestrator:
                         "source": r.source,
                     }
                     for r in eligible
-                ],
-                "locked": [
+                ]
+            locked_details = [
                     {
                         "id": r.course.id,
                         "name": r.course.name,
@@ -150,33 +178,34 @@ class CourseFinderOrchestrator:
                         "filter_reason": r.filter_reason,
                     }
                     for r in locked
-                ],
-                "verdict": {
+                ]
+            verdict_details = {
                     "best_course_id": verdict.best_course_id if verdict else None,
                     "runner_up_id": verdict.runner_up_id if verdict else None,
                     "reasoning": verdict.reasoning if verdict else None,
                     "confidence": verdict.confidence if verdict else None,
-                },
+                }
+            user_output, response_evaluation = self.evaluation_agent.process(
+                draft_response=user_output,
+                profile=profile,
+                eligible=eligible_details,
+                locked=locked_details,
+                verdict=verdict_details,
+            )
+            details = {
+                "eligible": eligible_details,
+                "locked": locked_details,
+                "verdict": verdict_details,
+                "response_evaluation": response_evaluation,
                 "full_output": full_output,
-                "query_rag": [
-                    {
-                        "id": r.course.id,
-                        "name": r.course.name,
-                        "score": r.score,
-                        "source": r.source,
-                    }
-                    for r in query_fused
-                ],
+                "score_explanation": (
+                    "Raw retrieval scores use different units by algorithm. "
+                    "standard_score is normalized to 0-10 within each method for display; "
+                    "final fusion uses weighted Reciprocal Rank Fusion over ranks."
+                ),
+                "query_rag": self._serialize_rankings(query_fused),
                 "retrieval_methods": {
-                    name: [
-                        {
-                            "id": r.course.id,
-                            "name": r.course.name,
-                            "score": r.score,
-                            "source": r.source,
-                        }
-                        for r in results
-                    ]
+                    name: self._serialize_rankings(results)
                     for name, results in retrieval_rankings.items()
                 },
             }

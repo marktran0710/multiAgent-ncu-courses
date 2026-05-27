@@ -76,11 +76,32 @@
             background: #f8f9fa;
         }
 
-        .log-entry {
+        .log-entry,
+        .ranking-method {
             margin-bottom: 10px;
             padding: 10px;
             border: 1px solid #eee;
             border-radius: 4px;
+        }
+
+        .ranking-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .ranking-method {
+            background: white;
+        }
+
+        .ranking-method h4 {
+            margin: 0 0 8px;
+        }
+
+        .ranking-method ol {
+            margin: 0;
+            padding-left: 20px;
         }
     </style>
 </head>
@@ -253,12 +274,61 @@
                         <strong>Profile:</strong> ${log.profile ? JSON.stringify(log.profile, null, 2) : 'None'}<br>
                         <strong>Eligible:</strong> ${log.eligible ? log.eligible.map(course => course.id).join(', ') : '[]'}<br>
                         <strong>Locked:</strong> ${log.locked ? log.locked.map(course => course.id).join(', ') : '[]'}<br>
+                        ${renderRankingMethods(log)}
                         <details style="margin-top:10px;"><summary>Full backend output</summary><pre>${log.full_output ? log.full_output.replace(/</g, '&lt;') : 'None'}</pre></details>
                     </div>
                 `).join('');
             } catch (error) {
                 alert('Error: ' + error.message);
             }
+        }
+
+        function renderRankingMethods(log) {
+            const methods = { ...(log.retrieval_methods || {}) };
+            if (log.query_rag && log.query_rag.length) {
+                methods.final_query_rag_fusion = log.query_rag;
+            }
+            const entries = Object.entries(methods).filter(([, results]) => Array.isArray(results) && results.length);
+            if (!entries.length) {
+                return '<details style="margin-top:10px;"><summary>Ranking results from all algorithms</summary>No ranking data recorded.</details>';
+            }
+            const explanation = log.score_explanation || 'Raw scores use different units. Standard score is normalized to 0-10 within each algorithm; final fusion uses rank-based RRF.';
+            return `
+                <details style="margin-top:10px;">
+                    <summary>Ranking results from all algorithms (${entries.length})</summary>
+                    <div class="ranking-grid">
+                        ${entries.map(([name, results]) => `
+                            <div class="ranking-method">
+                                <h4>${escapeHtml(formatMethodName(name))}</h4>
+                                <ol>
+                                    ${results.slice(0, 10).map(course => `
+                                        <li>#${escapeHtml(course.rank || '')} ${escapeHtml(course.id || '')} - ${escapeHtml(course.name || '')} (standard ${escapeHtml(formatScore(course.standard_score ?? course.score))}/10, raw ${escapeHtml(formatScore(course.raw_score ?? course.score))})</li>
+                                    `).join('')}
+                                </ol>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <p>${escapeHtml(explanation)}</p>
+                </details>
+            `;
+        }
+
+        function formatMethodName(name) {
+            return String(name).replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+        }
+
+        function formatScore(score) {
+            return typeof score === 'number' ? score.toFixed(5) : 'n/a';
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
         }
 
         async function loadCourses() {

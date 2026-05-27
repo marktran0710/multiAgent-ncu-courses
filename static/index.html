@@ -567,6 +567,262 @@
             transform: translateY(0);
         }
 
+        .admin-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            display: none;
+            place-items: center;
+            padding: 18px;
+            background: rgba(15, 23, 42, 0.58);
+        }
+
+        .admin-overlay.open {
+            display: grid;
+        }
+
+        .admin-dialog {
+            width: min(1120px, 100%);
+            max-height: min(820px, calc(100vh - 36px));
+            overflow: hidden;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            background: #ffffff;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+        }
+
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--line);
+            background: var(--panel-soft);
+        }
+
+        .admin-header h2 {
+            margin: 0;
+            font-size: 1.08rem;
+        }
+
+        .admin-header p {
+            margin: 3px 0 0;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .admin-body {
+            overflow: auto;
+            padding: 18px;
+        }
+
+        .admin-login {
+            display: grid;
+            gap: 12px;
+            width: min(420px, 100%);
+            margin: 24px auto;
+        }
+
+        .admin-login input,
+        .admin-form input,
+        .admin-form textarea,
+        .admin-form select {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 11px 12px;
+            outline: none;
+            background: #ffffff;
+        }
+
+        .admin-dashboard {
+            display: none;
+            gap: 16px;
+        }
+
+        .admin-dashboard.open {
+            display: grid;
+        }
+
+        .admin-stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .admin-stat {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 12px;
+            background: #f8fafc;
+        }
+
+        .admin-stat span {
+            display: block;
+            color: var(--muted);
+            font-size: 0.78rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .admin-stat strong {
+            display: block;
+            margin-top: 4px;
+            font-size: 1.35rem;
+        }
+
+        .admin-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .admin-tab {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 9px 12px;
+            background: #ffffff;
+            color: #334155;
+            font-weight: 800;
+        }
+
+        .admin-tab.active {
+            background: var(--navy);
+            border-color: var(--navy);
+            color: #ffffff;
+        }
+
+        .admin-panel {
+            display: none;
+            gap: 12px;
+        }
+
+        .admin-panel.active {
+            display: grid;
+        }
+
+        .admin-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .primary-button {
+            border: none;
+            border-radius: 8px;
+            padding: 10px 13px;
+            background: var(--teal);
+            color: #ffffff;
+            font-weight: 800;
+        }
+
+        .danger-button {
+            border: 1px solid #fecdd3;
+            border-radius: 8px;
+            padding: 10px 13px;
+            background: #fff1f2;
+            color: #be123c;
+            font-weight: 800;
+        }
+
+        .admin-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .admin-form {
+            display: grid;
+            gap: 12px;
+        }
+
+        .admin-form label {
+            display: grid;
+            gap: 6px;
+            color: #334155;
+            font-weight: 800;
+            font-size: 0.9rem;
+        }
+
+        .admin-list {
+            display: grid;
+            gap: 10px;
+            max-height: 460px;
+            overflow: auto;
+        }
+
+        .admin-card {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 12px;
+            background: #ffffff;
+            line-height: 1.5;
+        }
+
+        .admin-card-title {
+            margin-bottom: 4px;
+            color: var(--navy);
+            font-weight: 850;
+        }
+
+        .admin-card-meta {
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .ranking-details {
+            margin-top: 10px;
+            border-top: 1px solid var(--line);
+            padding-top: 10px;
+        }
+
+        .ranking-details summary {
+            cursor: pointer;
+            color: var(--blue-dark);
+            font-weight: 850;
+        }
+
+        .ranking-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .ranking-method {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 10px;
+            background: #f8fafc;
+        }
+
+        .ranking-method h4 {
+            margin: 0 0 8px;
+            color: var(--navy);
+            font-size: 0.9rem;
+        }
+
+        .ranking-method ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .ranking-method li {
+            margin: 4px 0;
+            color: #334155;
+            font-size: 0.88rem;
+        }
+
+        .admin-search {
+            width: min(420px, 100%);
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
         @keyframes messageIn {
             from {
                 opacity: 0;
@@ -613,6 +869,7 @@
             .topbar-actions {
                 width: 100%;
                 justify-content: space-between;
+                flex-wrap: wrap;
             }
 
             .workspace {
@@ -639,6 +896,12 @@
             .send-button {
                 width: 100%;
             }
+
+            .admin-stats,
+            .admin-grid,
+            .ranking-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -655,6 +918,7 @@
             </div>
             <div class="topbar-actions">
                 <div class="status-pill"><span class="status-dot"></span><span id="connectionStatus">Ready</span></div>
+                <button class="ghost-button" id="adminModeButton" type="button">Admin</button>
                 <button class="ghost-button" id="clearChatButton" type="button">Clear</button>
             </div>
         </header>
@@ -730,6 +994,81 @@
         </section>
     </main>
 
+    <section class="admin-overlay" id="adminOverlay" aria-modal="true" role="dialog" aria-labelledby="adminTitle">
+        <div class="admin-dialog">
+            <header class="admin-header">
+                <div>
+                    <h2 id="adminTitle">Admin Mode</h2>
+                    <p>Manage the course catalog, refresh retrieval data, and review advising activity.</p>
+                </div>
+                <div class="admin-actions">
+                    <button class="ghost-button" id="adminLogoutButton" type="button">Logout</button>
+                    <button class="ghost-button" id="adminCloseButton" type="button">Close</button>
+                </div>
+            </header>
+
+            <div class="admin-body">
+                <form class="admin-login" id="adminLoginForm">
+                    <label>
+                        Admin password
+                        <input id="adminPasswordInput" type="password" autocomplete="current-password" placeholder="Enter admin password">
+                    </label>
+                    <button class="primary-button" type="submit">Enter Admin Mode</button>
+                    <button class="ghost-button" id="adminBypassButton" type="button" style="display:none;">Use Local Bypass</button>
+                </form>
+
+                <div class="admin-dashboard" id="adminDashboard">
+                    <div class="admin-stats">
+                        <div class="admin-stat"><span>Courses</span><strong id="adminCourseCount">0</strong></div>
+                        <div class="admin-stat"><span>Logs</span><strong id="adminLogCount">0</strong></div>
+                        <div class="admin-stat"><span>Status</span><strong id="adminStatusText">Active</strong></div>
+                    </div>
+
+                    <div class="admin-tabs" role="tablist">
+                        <button class="admin-tab active" data-admin-tab="courses" type="button">Courses</button>
+                        <button class="admin-tab" data-admin-tab="add" type="button">Add Course</button>
+                        <button class="admin-tab" data-admin-tab="logs" type="button">Logs</button>
+                    </div>
+
+                    <section class="admin-panel active" id="adminPanelCourses">
+                        <div class="admin-actions">
+                            <input class="admin-search" id="adminCourseSearch" type="search" placeholder="Search courses by ID, name, department, language">
+                            <button class="primary-button" id="adminLoadCoursesButton" type="button">Refresh Courses</button>
+                            <button class="ghost-button" id="adminUpdateDataButton" type="button">Rerun RAG</button>
+                        </div>
+                        <div class="admin-list" id="adminCoursesList"></div>
+                    </section>
+
+                    <section class="admin-panel" id="adminPanelAdd">
+                        <form class="admin-form" id="adminAddCourseForm">
+                            <div class="admin-grid">
+                                <label>Course ID<input id="adminCourseId" required placeholder="EECS7001"></label>
+                                <label>Course Name<input id="adminCourseName" required placeholder="Advanced AI Systems"></label>
+                                <label>Credits<input id="adminCredits" type="number" min="1" required placeholder="3"></label>
+                                <label>Semester<input id="adminSemester" required placeholder="Fall / Spring"></label>
+                                <label>Schedule<input id="adminSchedule" required placeholder="Monday 10:00-13:00"></label>
+                                <label>Instructor<input id="adminInstructor" required placeholder="Prof. Example"></label>
+                                <label>Department<input id="adminDepartment" required placeholder="Computer Science and Information Engineering"></label>
+                                <label>Prerequisites<input id="adminPrerequisites" placeholder="CSIE4001, MATH2002"></label>
+                                <label>Language<select id="adminLanguage"><option value="Chinese">Chinese</option><option value="English">English</option></select></label>
+                                <label>Degree<select id="adminDegree"><option value="undergrad">Undergrad</option><option value="master">Master</option><option value="phd">PhD</option></select></label>
+                            </div>
+                            <label>Description<textarea id="adminDescription" required rows="4" placeholder="Course description..."></textarea></label>
+                            <button class="primary-button" type="submit">Add Course</button>
+                        </form>
+                    </section>
+
+                    <section class="admin-panel" id="adminPanelLogs">
+                        <div class="admin-actions">
+                            <button class="primary-button" id="adminLoadLogsButton" type="button">Refresh Logs</button>
+                        </div>
+                        <div class="admin-list" id="adminLogsList"></div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <div class="toast" id="toast"></div>
 
     <script>
@@ -746,6 +1085,14 @@
         const activityList = document.getElementById('activityList');
         const chatSummary = document.getElementById('chatSummary');
         const toast = document.getElementById('toast');
+        const adminOverlay = document.getElementById('adminOverlay');
+        const adminLoginForm = document.getElementById('adminLoginForm');
+        const adminBypassButton = document.getElementById('adminBypassButton');
+        const adminDashboard = document.getElementById('adminDashboard');
+        const adminLogoutButton = document.getElementById('adminLogoutButton');
+        const adminCourseSearch = document.getElementById('adminCourseSearch');
+        const adminCoursesList = document.getElementById('adminCoursesList');
+        const adminLogsList = document.getElementById('adminLogsList');
 
         const maxChars = 500;
         const promptGroups = {
@@ -776,6 +1123,8 @@
         let activePromptGroup = 'Goals';
         let chatSocket = null;
         let realtimeSessionId = localStorage.getItem('ncu_realtime_session_id') || crypto.randomUUID();
+        let adminCourses = [];
+        let adminLogs = [];
         localStorage.setItem('ncu_realtime_session_id', realtimeSessionId);
 
         function init() {
@@ -790,6 +1139,22 @@
         function bindEvents() {
             sendButton.addEventListener('click', sendMessage);
             document.getElementById('clearChatButton').addEventListener('click', clearChat);
+            document.getElementById('adminModeButton').addEventListener('click', openAdminMode);
+            document.getElementById('adminCloseButton').addEventListener('click', closeAdminMode);
+            adminLogoutButton.addEventListener('click', logoutAdmin);
+            adminLoginForm.addEventListener('submit', loginAdmin);
+            adminBypassButton.addEventListener('click', bypassAdminLogin);
+            document.getElementById('adminLoadCoursesButton').addEventListener('click', loadAdminCourses);
+            document.getElementById('adminLoadLogsButton').addEventListener('click', loadAdminLogs);
+            document.getElementById('adminUpdateDataButton').addEventListener('click', updateAdminData);
+            document.getElementById('adminAddCourseForm').addEventListener('submit', addAdminCourse);
+            adminCourseSearch.addEventListener('input', renderAdminCourses);
+            document.querySelectorAll('[data-admin-tab]').forEach((button) => {
+                button.addEventListener('click', () => setAdminTab(button.dataset.adminTab));
+            });
+            adminOverlay.addEventListener('click', (event) => {
+                if (event.target === adminOverlay) closeAdminMode();
+            });
             input.addEventListener('input', () => {
                 autoResizeInput();
                 updateComposer();
@@ -800,6 +1165,267 @@
                     sendMessage();
                 }
             });
+        }
+
+        async function openAdminMode() {
+            adminOverlay.classList.add('open');
+            await checkAdminStatus();
+        }
+
+        function closeAdminMode() {
+            adminOverlay.classList.remove('open');
+        }
+
+        async function checkAdminStatus() {
+            try {
+                const response = await fetch('/admin/status');
+                const status = await response.json();
+                setAdminAuthenticated(Boolean(status.authenticated));
+                adminBypassButton.style.display = status.bypass_available ? 'inline-flex' : 'none';
+                if (status.authenticated) {
+                    await Promise.all([loadAdminCourses(), loadAdminLogs()]);
+                }
+            } catch (error) {
+                setAdminAuthenticated(false);
+                adminBypassButton.style.display = 'none';
+                showToast('Admin status unavailable.');
+            }
+        }
+
+        function setAdminAuthenticated(value) {
+            adminLoginForm.style.display = value ? 'none' : 'grid';
+            adminDashboard.classList.toggle('open', value);
+            adminLogoutButton.style.display = value ? 'inline-flex' : 'none';
+            document.getElementById('adminStatusText').textContent = value ? 'Active' : 'Locked';
+            if (!value) {
+                adminCoursesList.innerHTML = '';
+                adminLogsList.innerHTML = '';
+                document.getElementById('adminCourseCount').textContent = '0';
+                document.getElementById('adminLogCount').textContent = '0';
+            }
+        }
+
+        async function loginAdmin(event) {
+            event.preventDefault();
+            const password = document.getElementById('adminPasswordInput').value;
+            try {
+                const response = await fetch('/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+                if (!response.ok) throw new Error('Invalid admin password');
+                document.getElementById('adminPasswordInput').value = '';
+                setAdminAuthenticated(true);
+                await Promise.all([loadAdminCourses(), loadAdminLogs()]);
+                showToast('Admin mode enabled.');
+            } catch (error) {
+                showToast(error.message);
+            }
+        }
+
+        async function bypassAdminLogin() {
+            try {
+                const response = await fetch('/admin/dev-login', { method: 'POST' });
+                if (!response.ok) throw new Error('Local admin bypass is disabled');
+                document.getElementById('adminPasswordInput').value = '';
+                setAdminAuthenticated(true);
+                await Promise.all([loadAdminCourses(), loadAdminLogs()]);
+                showToast('Admin mode enabled with local bypass.');
+            } catch (error) {
+                showToast(error.message);
+            }
+        }
+
+        async function logoutAdmin() {
+            await fetch('/admin/logout', { method: 'POST' });
+            setAdminAuthenticated(false);
+            showToast('Admin mode closed.');
+        }
+
+        function setAdminTab(tab) {
+            document.querySelectorAll('[data-admin-tab]').forEach((button) => {
+                button.classList.toggle('active', button.dataset.adminTab === tab);
+            });
+            document.getElementById('adminPanelCourses').classList.toggle('active', tab === 'courses');
+            document.getElementById('adminPanelAdd').classList.toggle('active', tab === 'add');
+            document.getElementById('adminPanelLogs').classList.toggle('active', tab === 'logs');
+        }
+
+        async function loadAdminCourses() {
+            try {
+                const response = await fetch('/admin/courses');
+                if (!response.ok) throw new Error('Course catalog requires admin login');
+                adminCourses = await response.json();
+                document.getElementById('adminCourseCount').textContent = String(adminCourses.length);
+                renderAdminCourses();
+            } catch (error) {
+                showToast(error.message);
+            }
+        }
+
+        function renderAdminCourses() {
+            const query = adminCourseSearch.value.trim().toLowerCase();
+            const courses = adminCourses.filter((course) => {
+                const haystack = [
+                    course.id,
+                    course.name,
+                    course.department,
+                    course.language,
+                    course.degree,
+                    course.semester
+                ].join(' ').toLowerCase();
+                return !query || haystack.includes(query);
+            });
+
+            if (!courses.length) {
+                adminCoursesList.innerHTML = '<div class="empty-state">No courses match the current filter.</div>';
+                return;
+            }
+
+            adminCoursesList.replaceChildren(...courses.map((course) => {
+                const card = document.createElement('article');
+                card.className = 'admin-card';
+                card.innerHTML = `
+                    <div class="admin-card-title">${escapeHtml(course.id)} · ${escapeHtml(course.name)}</div>
+                    <div class="admin-card-meta">${escapeHtml(course.department)} · ${escapeHtml(course.language || 'Chinese')} · ${escapeHtml(course.degree || 'undergrad')} · ${escapeHtml(course.semester)}</div>
+                    <div>${escapeHtml(course.schedule)} · ${escapeHtml(course.instructor)}</div>
+                    <div>Prerequisites: ${escapeHtml((course.prerequisites || []).join(', ') || 'None')}</div>
+                    <div>${escapeHtml(course.description)}</div>
+                `;
+                return card;
+            }));
+        }
+
+        async function loadAdminLogs() {
+            try {
+                const response = await fetch('/admin/logs');
+                if (!response.ok) throw new Error('Conversation logs require admin login');
+                adminLogs = await response.json();
+                document.getElementById('adminLogCount').textContent = String(adminLogs.length);
+                renderAdminLogs();
+            } catch (error) {
+                showToast(error.message);
+            }
+        }
+
+        function renderAdminLogs() {
+            if (!adminLogs.length) {
+                adminLogsList.innerHTML = '<div class="empty-state">No conversation logs yet.</div>';
+                return;
+            }
+
+            adminLogsList.replaceChildren(...adminLogs.slice().reverse().map((log) => {
+                const card = document.createElement('article');
+                card.className = 'admin-card';
+                const eligible = (log.eligible || []).map((course) => course.id).join(', ') || 'None';
+                const locked = (log.locked || []).map((course) => course.id).join(', ') || 'None';
+                const evaluation = log.response_evaluation || {};
+                const evaluationText = evaluation.status
+                    ? `${evaluation.status}${evaluation.approved === false ? ' · revised' : ' · approved'}`
+                    : 'Not recorded';
+                const rankingHtml = renderRankingMethods(log);
+                card.innerHTML = `
+                    <div class="admin-card-title">${escapeHtml(log.session_id || 'session')}</div>
+                    <div><strong>User:</strong> ${escapeHtml(log.user_message || '')}</div>
+                    <div><strong>Bot:</strong> ${escapeHtml(log.bot_response || '')}</div>
+                    <div class="admin-card-meta">Eligible: ${escapeHtml(eligible)} · Locked: ${escapeHtml(locked)}</div>
+                    <div class="admin-card-meta">Evaluation: ${escapeHtml(evaluationText)}</div>
+                    ${rankingHtml}
+                `;
+                return card;
+            }));
+        }
+
+        function renderRankingMethods(log) {
+            const methods = { ...(log.retrieval_methods || {}) };
+            if (log.query_rag && log.query_rag.length) {
+                methods.final_query_rag_fusion = log.query_rag;
+            }
+            const entries = Object.entries(methods).filter(([, results]) => Array.isArray(results) && results.length);
+            if (!entries.length) {
+                return '<details class="ranking-details"><summary>Ranking results from all algorithms</summary><div class="empty-state">No ranking data recorded for this log.</div></details>';
+            }
+
+            const methodHtml = entries.map(([name, results]) => `
+                <section class="ranking-method">
+                    <h4>${escapeHtml(formatMethodName(name))}</h4>
+                    <ol>
+                        ${results.slice(0, 10).map((course) => `
+                            <li>
+                                #${escapeHtml(course.rank || '')} ${escapeHtml(course.id || '')} - ${escapeHtml(course.name || '')}
+                                <span class="admin-card-meta">standard ${escapeHtml(formatScore(course.standard_score ?? course.score))}/10 - raw ${escapeHtml(formatScore(course.raw_score ?? course.score))}</span>
+                            </li>
+                        `).join('')}
+                    </ol>
+                </section>
+            `).join('');
+
+            const explanation = log.score_explanation || 'Raw scores use different units. Standard score is normalized to 0-10 within each algorithm; final fusion uses rank-based RRF.';
+
+            return `
+                <details class="ranking-details">
+                    <summary>Ranking results from all algorithms (${entries.length})</summary>
+                    <div class="admin-card-meta">${escapeHtml(explanation)}</div>
+                    <div class="ranking-grid">${methodHtml}</div>
+                </details>
+            `;
+        }
+
+        function formatMethodName(name) {
+            return String(name)
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, (letter) => letter.toUpperCase());
+        }
+
+        function formatScore(score) {
+            return typeof score === 'number' ? score.toFixed(5) : 'n/a';
+        }
+
+        async function updateAdminData() {
+            try {
+                const response = await fetch('/admin/update_data', { method: 'POST' });
+                if (!response.ok) throw new Error('Could not refresh retrieval data');
+                showToast('Retrieval agents refreshed.');
+                await loadAdminCourses();
+            } catch (error) {
+                showToast(error.message);
+            }
+        }
+
+        async function addAdminCourse(event) {
+            event.preventDefault();
+            const course = {
+                id: document.getElementById('adminCourseId').value.trim(),
+                name: document.getElementById('adminCourseName').value.trim(),
+                credits: Number.parseInt(document.getElementById('adminCredits').value, 10),
+                semester: document.getElementById('adminSemester').value.trim(),
+                schedule: document.getElementById('adminSchedule').value.trim(),
+                instructor: document.getElementById('adminInstructor').value.trim(),
+                department: document.getElementById('adminDepartment').value.trim(),
+                prerequisites: document.getElementById('adminPrerequisites').value.split(',').map((item) => item.trim()).filter(Boolean),
+                language: document.getElementById('adminLanguage').value,
+                degree: document.getElementById('adminDegree').value,
+                description: document.getElementById('adminDescription').value.trim()
+            };
+
+            try {
+                const response = await fetch('/admin/add_course', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ course })
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Could not add course');
+                }
+                event.target.reset();
+                setAdminTab('courses');
+                await loadAdminCourses();
+                showToast('Course added and retrieval agents refreshed.');
+            } catch (error) {
+                showToast(error.message);
+            }
         }
 
         function renderPrompts() {
@@ -1148,6 +1774,16 @@
 
         function titleCase(value) {
             return String(value).replace(/\b\w/g, (letter) => letter.toUpperCase());
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[char]));
         }
 
         init();

@@ -26,6 +26,7 @@ from agents.QueryRAGAgent import QueryRAGAgent
 from agents.VectorAgent import VectorAgent
 from agents.FusionAgent import FusionAgent
 from agents.JudgeAgent import JudgeAgent
+from agents.ResponseEvaluationAgent import ResponseEvaluationAgent
 from agents.ResponseAgent import ResponseAgent
 
 
@@ -259,6 +260,30 @@ class TestFusionAgent:
         assert len(locked) == 1
         assert "english" in locked[0].filter_reason.lower()
 
+    def test_language_preference_prioritizes_without_filtering(self, fusion_agent):
+        profile = UserProfile(
+            raw_input="I prefer English, but Chinese is okay",
+            academic_year=1,
+            degree_level="undergrad",
+            completed_courses=[],
+            goals=["programming"],
+            constraints=["English courses preferred"],
+            preferred_language="English",
+            language_priority="preferred",
+            search_query="programming",
+        )
+        chinese = Course(**RAW_COURSES[0], language="Chinese")
+        english = Course(**RAW_COURSES[1], language="English")
+        results = [
+            RetrievalResult(chinese, 0.9, "fusion"),
+            RetrievalResult(english, 0.1, "fusion"),
+        ]
+
+        eligible, locked = fusion_agent.filter_results(results, profile)
+
+        assert locked == []
+        assert [r.course.language for r in eligible] == ["English", "Chinese"]
+
     def test_empty_input(self, fusion_agent, fresh_profile):
         eligible, locked = fusion_agent.process([], [], fresh_profile)
         assert eligible == []
@@ -360,6 +385,7 @@ class TestIntakeAgentProfileBuilding:
         agent = IntakeAgent()
         profile = agent._heuristic_fallback("any course is taught by english I can learn")
         assert profile.preferred_language == "English"
+        assert profile.language_priority == "required"
         assert "English courses only" in profile.constraints
 
     def test_process_llm_failure_updates_existing_profile_with_language_hint(self, monkeypatch):
@@ -382,6 +408,7 @@ class TestIntakeAgentProfileBuilding:
 
         assert profile is existing
         assert profile.preferred_language == "English"
+        assert profile.language_priority == "required"
         assert "English courses only" in profile.constraints
 
     def test_update_merges_goals(self):
@@ -426,6 +453,14 @@ class TestIntakeAgentProfileBuilding:
         )
         assert "English courses only" in updated["constraints"]
 
+    def test_apply_language_hint_adds_soft_english_preference(self):
+        args = {"constraints": [], "search_query": "english courses"}
+        updated = IntakeAgent._apply_language_hint(
+            "I prefer English courses",
+            args,
+        )
+        assert "English courses preferred" in updated["constraints"]
+
     def test_apply_language_hint_does_not_convert_language_comparison_question(self):
         args = {"constraints": [], "search_query": "course language"}
         updated = IntakeAgent._apply_language_hint(
@@ -433,6 +468,16 @@ class TestIntakeAgentProfileBuilding:
             args,
         )
         assert updated["constraints"] == []
+
+    def test_extract_language_priority_levels(self):
+        assert UserProfile._extract_language_preference(["English courses only"]) == (
+            "English",
+            "required",
+        )
+        assert UserProfile._extract_language_preference(["Chinese courses preferred"]) == (
+            "Chinese",
+            "preferred",
+        )
 
     def test_call_llm_falls_back_to_gemini_when_groq_fails(self, monkeypatch):
         agent = IntakeAgent(provider="groq")
@@ -617,3 +662,112 @@ class TestResponseAgent:
         verdict  = JudgeVerdict("CSIE4001", "Reason.", "medium")
         out = response_agent.process(fresh_profile, eligible, [], eligible, eligible, verdict, course_map)
         assert "STUDENT PROFILE" in out
+
+
+class TestResponseEvaluationAgent:
+    def test_uses_different_provider_from_primary(self):
+        assert ResponseEvaluationAgent(primary_provider="groq").provider == "gemini"
+        assert ResponseEvaluationAgent(primary_provider="gemini").provider == "groq"
+
+    def test_skips_when_provider_key_is_not_configured(self, monkeypatch, fresh_profile):
+        monkeypatch.setenv("GEMINI_API_KEY", "placeholder")
+        monkeypatch.setenv("GROQ_API_KEY", "placeholder")
+        agent = ResponseEvaluationAgent(primary_provider="groq")
+
+        response, metadata = agent.process(
+            draft_response="Draft answer",
+            profile=fresh_profile,
+            eligible=[],
+            locked=[],
+            verdict={},
+        )
+
+        assert response == "Draft answer"
+        assert metadata["status"] == "skipped"
+        assert metadata["approved"] is True
+
+    def test_uses_revised_response_when_not_approved(self, monkeypatch, fresh_profile):
+        monkeypatch.setenv("GEMINI_API_KEY", "configured-test-key")
+        agent = ResponseEvaluationAgent(primary_provider="groq")
+        evaluator = MagicMock(return_value={
+            "approved": False,
+            "score": 2,
+            "issues": ["Locked course was phrased as eligible."],
+            "revised_response": "Closest match is locked; complete prerequisites first.",
+        })
+        monkeypatch.setattr(agent, "_call_llm", evaluator)
+
+        response, metadata = agent.process(
+            draft_response="Take this locked course now.",
+            profile=fresh_profile,
+            eligible=[],
+            locked=[{"id": "CSIE4001", "missing_prereqs": ["CSIE3001"]}],
+            verdict={"best_course_id": None},
+        )
+
+        assert response == "Closest match is locked; complete prerequisites first."
+        assert metadata["status"] == "completed"
+        assert metadata["approved"] is False
+        assert metadata["score"] == 2
+        assert metadata["provider"] == "gemini"
+
+    def test_falls_back_to_alternate_groq_model_when_gemini_fails(self, monkeypatch, fresh_profile):
+        monkeypatch.setenv("GEMINI_API_KEY", "configured-test-key")
+        monkeypatch.setenv("GROQ_API_KEY", "configured-test-key")
+        agent = ResponseEvaluationAgent(primary_provider="groq", primary_model="llama-3.3-70b-versatile")
+
+        def evaluator(_messages, provider, model):
+            if provider == "gemini":
+                raise RuntimeError("quota exhausted")
+            return {
+                "approved": True,
+                "score": 5,
+                "issues": [],
+                "revised_response": "Draft answer",
+            }
+
+        monkeypatch.setattr(agent, "_call_llm", evaluator)
+
+        response, metadata = agent.process(
+            draft_response="Draft answer",
+            profile=fresh_profile,
+            eligible=[],
+            locked=[],
+            verdict={},
+        )
+
+        assert response == "Draft answer"
+        assert metadata["status"] == "completed"
+        assert metadata["provider"] == "groq"
+        assert metadata["model"] == "llama-3.1-8b-instant"
+
+    def test_parses_groq_failed_generation_payload(self):
+        error_text = (
+            "tool_use_failed failed_generation: "
+            '<function=evaluate_course_response>{"approved": false, "score": 4, '
+            '"issues": ["needs prerequisite wording"], '
+            '"revised_response": "Complete prerequisites first.", '
+            '"extra_field": []}</function>'
+        )
+
+        parsed = ResponseEvaluationAgent._parse_groq_failed_generation(error_text)
+
+        assert parsed == {
+            "approved": False,
+            "score": 4,
+            "issues": ["needs prerequisite wording"],
+            "revised_response": "Complete prerequisites first.",
+        }
+
+    def test_parses_groq_failed_generation_with_escaped_single_quotes(self):
+        error_text = (
+            '<function=evaluate_course_response>{"approved": false, "score": 2, '
+            '"issues": ["locked course"], '
+            '"locked_courses": "[{\\\\\\\'id\\\\\\\': \\\\\\\'CSIE4010\\\\\\\'}]", '
+            '"revised_response": "Complete CSIE3008 first."}</function>'
+        )
+
+        parsed = ResponseEvaluationAgent._parse_groq_failed_generation(error_text)
+
+        assert parsed["approved"] is False
+        assert parsed["revised_response"] == "Complete CSIE3008 first."

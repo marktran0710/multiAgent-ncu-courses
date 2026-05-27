@@ -43,6 +43,12 @@ from agents.FusionAgent import FusionAgent
 from agents.JudgeAgent import JudgeAgent
 from agents.ResponseAgent import ResponseAgent
 from agents.OrchestratorAgent import CourseFinderOrchestrator
+
+
+def admin_cookie() -> dict:
+    token = "test-admin-session"
+    api_module.admin_sessions.add(token)
+    return {"admin_session": token}
 # ─────────────────────────────────────────────────────────────────────────────
 #  Fixtures
 # ─────────────────────────────────────────────────────────────────────────────
@@ -734,7 +740,7 @@ class TestAdminAPIAddCourse:
         response = client.post(
             "/admin/add_course",
             json={"course": {"id": "TEST1001", "name": "Demo Course"}},
-            cookies={"admin": "true"},
+            cookies=admin_cookie(),
         )
         assert response.status_code == 400
         assert "Missing required fields" in response.json()["detail"]
@@ -757,7 +763,7 @@ class TestAdminAPIAddCourse:
         response = client.post(
             "/admin/add_course",
             json={"course": new_course},
-            cookies={"admin": "true"},
+            cookies=admin_cookie(),
         )
         assert response.status_code == 200
         assert response.json()["success"] is True

@@ -159,6 +159,7 @@ class IntakeAgent:
             constraints=args.get("constraints") or [],
             search_query=raw_input,
             preferred_language=UserProfile._extract_preferred_language(args.get("constraints") or []),
+            language_priority=UserProfile._extract_language_priority(args.get("constraints") or []),
         )
 
     @staticmethod
@@ -178,12 +179,18 @@ class IntakeAgent:
         asks_language_filtered_course = any(
             phrase in text
             for phrase in (
+                "prefer english",
+                "preferred english",
+                "english preferred",
                 "english taught",
                 "english-taught",
                 "taught by english",
                 "taught in english",
                 "english course",
                 "english courses",
+                "prefer chinese",
+                "preferred chinese",
+                "chinese preferred",
                 "chinese taught",
                 "chinese-taught",
                 "taught by chinese",
@@ -197,7 +204,12 @@ class IntakeAgent:
             return args
 
         language = "English" if "english" in text else "Chinese"
-        constraint = f"{language} courses only"
+        priority = "preferred" if re.search(r"\b(prefer|preferred|preference|if possible)\b", text) else "required"
+        constraint = (
+            f"{language} courses preferred"
+            if priority == "preferred"
+            else f"{language} courses only"
+        )
         constraints = list(args.get("constraints") or [])
         if not any(constraint.lower() == existing.lower() for existing in constraints):
             constraints.append(constraint)
@@ -313,5 +325,6 @@ class IntakeAgent:
             goals=args.get("goals") or [],
             constraints=args.get("constraints") or [],
             preferred_language=UserProfile._extract_preferred_language(args.get("constraints") or []),
+            language_priority=UserProfile._extract_language_priority(args.get("constraints") or []),
             search_query=args.get("search_query", raw_input).strip(),
         )

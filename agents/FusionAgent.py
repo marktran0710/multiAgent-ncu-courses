@@ -53,7 +53,12 @@ class FusionAgent:
                 continue
 
             preferred_language = profile.preferred_language
-            if preferred_language and (not r.course.language or r.course.language.lower() != preferred_language.lower()):
+            language_priority = profile.language_priority or ("required" if preferred_language else None)
+            language_matches = (
+                not preferred_language
+                or (r.course.language or "Chinese").lower() == preferred_language.lower()
+            )
+            if preferred_language and language_priority == "required" and not language_matches:
                 r.filter_reason = (
                     f"Course is offered in {r.course.language or 'English'}, but you requested {preferred_language}."
                 )
@@ -67,6 +72,14 @@ class FusionAgent:
                 eligible.append(r)
             else:
                 locked.append(r)
+
+        if profile.preferred_language and profile.language_priority == "preferred":
+            def language_rank(result: RetrievalResult) -> tuple[int, float]:
+                matches = (result.course.language or "Chinese").lower() == profile.preferred_language.lower()
+                return (1 if matches else 0, result.score)
+
+            eligible.sort(key=language_rank, reverse=True)
+            locked.sort(key=language_rank, reverse=True)
 
         print(
             f"[{self.name}] Eligible: {[r.course.id for r in eligible]} | "

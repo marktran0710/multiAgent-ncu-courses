@@ -50,6 +50,12 @@ class TestInternationalAdvisorUI(unittest.TestCase):
             "messageInput",
             "sendButton",
             "clearChatButton",
+            "adminModeButton",
+            "adminOverlay",
+            "adminLoginForm",
+            "adminDashboard",
+            "adminCoursesList",
+            "adminLogsList",
             "profileState",
             "profileMeter",
             "profileMeterLabel",
@@ -102,6 +108,26 @@ class TestInternationalAdvisorUI(unittest.TestCase):
         self.assertIn("/ws/chat", self.html)
         self.assertIn("function handleRealtimeEvent(event)", self.html)
         self.assertIn("HTTP fallback", self.html)
+
+    def test_admin_mode_is_embedded_in_main_ui(self):
+        self.assertIn("Admin Mode", self.visible_text)
+        self.assertIn("Manage the course catalog", self.visible_text)
+        self.assertIn("function openAdminMode()", self.html)
+        self.assertIn("function loginAdmin(event)", self.html)
+        self.assertIn("function bypassAdminLogin()", self.html)
+        self.assertIn("/admin/status", self.html)
+        self.assertIn("/admin/dev-login", self.html)
+        self.assertIn("/admin/courses", self.html)
+        self.assertIn("/admin/logs", self.html)
+
+    def test_admin_logs_render_algorithm_rankings(self):
+        self.assertIn("function renderRankingMethods(log)", self.html)
+        self.assertIn("retrieval_methods", self.html)
+        self.assertIn("query_rag", self.html)
+        self.assertIn("Ranking results from all algorithms", self.html)
+        self.assertIn("final_query_rag_fusion", self.html)
+        self.assertIn("standard_score", self.html)
+        self.assertIn("Raw scores use different units", self.html)
 
     def test_no_old_generic_branding_remains(self):
         self.assertNotIn("<h1>Course Finder</h1>", self.html)

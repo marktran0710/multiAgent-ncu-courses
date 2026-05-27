@@ -61,6 +61,8 @@ class FakeOrchestrator:
             "query_rag": [{"id": "CSIE4001"}],
             "retrieval_methods": {"bm25_agent": [{"id": "CSIE4001"}]},
             "verdict": {"best_course_id": "CSIE4001"},
+            "response_evaluation": {"status": "completed", "approved": True},
+            "score_explanation": api_module.SCORE_EXPLANATION,
         }
         return "I recommend CSIE4001.", self.profile, details
 
@@ -72,10 +74,12 @@ def isolated_api_state(monkeypatch):
     api_module.user_sessions.clear()
     api_module.last_recommendations.clear()
     api_module.conversation_logs.clear()
+    api_module.admin_sessions.clear()
     yield fake
     api_module.user_sessions.clear()
     api_module.last_recommendations.clear()
     api_module.conversation_logs.clear()
+    api_module.admin_sessions.clear()
 
 
 class TestChatLogic:
@@ -95,6 +99,8 @@ class TestChatLogic:
         assert details["verdict"]["best_course_id"] == "CSIE4001"
         assert api_module.conversation_logs[-1]["session_id"] == "s1"
         assert api_module.conversation_logs[-1]["retrieval_methods"]["bm25_agent"][0]["id"] == "CSIE4001"
+        assert api_module.conversation_logs[-1]["response_evaluation"]["approved"] is True
+        assert "Raw retrieval scores use different units" in api_module.conversation_logs[-1]["score_explanation"]
 
     def test_run_chat_message_passes_existing_profile(self, isolated_api_state):
         existing = make_profile("existing")
@@ -116,6 +122,7 @@ class TestChatLogic:
         assert details["verdict"]["best_course_id"] == "CSIE4001"
         assert len(isolated_api_state.calls) == 1
         assert api_module.conversation_logs[-1]["bot_response"] == output
+        assert api_module.conversation_logs[-1]["score_explanation"] == api_module.SCORE_EXPLANATION
 
     def test_language_follow_up_without_previous_course_uses_normal_chat(self, isolated_api_state):
         api_module.run_chat_message("s1", "is the course taught in english or chinese")
@@ -173,6 +180,7 @@ class TestChatLogic:
             assert response_event["type"] == "response"
             assert response_event["response"] == "I recommend CSIE4001."
             assert response_event["verdict"]["best_course_id"] == "CSIE4001"
+            assert response_event["response_evaluation"]["approved"] is True
             assert done_event["type"] == "done"
 
 
@@ -190,6 +198,12 @@ def valid_course_payload(course_id: str = "TEST9001") -> dict:
         "language": "english",
         "degree": "UNDERGRAD",
     }
+
+
+def admin_cookie() -> dict:
+    token = "test-admin-session"
+    api_module.admin_sessions.add(token)
+    return {"admin_session": token}
 
 
 class FakeCourseFinderOrchestrator:
@@ -221,8 +235,38 @@ class TestApiRoutesAndAdminLogic:
 
         assert success.status_code == 200
         assert success.json()["success"] is True
-        assert "admin" in success.cookies
+        assert "admin_session" in success.cookies
         assert failure.status_code == 401
+
+    def test_admin_status_and_logout(self):
+        client = TestClient(app)
+        anonymous = client.get("/admin/status")
+        login = client.post("/admin/login", json={"password": "admin123"})
+        logged_in = client.get("/admin/status")
+        logout = client.post("/admin/logout")
+        logged_out = client.get("/admin/status")
+
+        assert anonymous.status_code == 200
+        assert anonymous.json() == {"authenticated": False, "bypass_available": False}
+        assert login.status_code == 200
+        assert logged_in.status_code == 200
+        assert logged_in.json() == {"authenticated": True, "bypass_available": False}
+        assert logout.status_code == 200
+        assert logout.json()["success"] is True
+        assert logged_out.json() == {"authenticated": False, "bypass_available": False}
+
+    def test_admin_dev_login_requires_bypass_flag(self, monkeypatch):
+        client = TestClient(app)
+        disabled = client.post("/admin/dev-login")
+
+        monkeypatch.setattr(api_module, "ADMIN_BYPASS_ENABLED", True)
+        enabled = client.post("/admin/dev-login")
+        status = client.get("/admin/status")
+
+        assert disabled.status_code == 403
+        assert enabled.status_code == 200
+        assert enabled.json()["success"] is True
+        assert status.json() == {"authenticated": True, "bypass_available": True}
 
     @pytest.mark.parametrize(
         ("field", "value", "message"),
@@ -248,7 +292,7 @@ class TestApiRoutesAndAdminLogic:
         response = client.post(
             "/admin/add_course",
             json={"course": payload},
-            cookies={"admin": "true"},
+            cookies=admin_cookie(),
         )
 
         assert response.status_code == 400
@@ -260,7 +304,7 @@ class TestApiRoutesAndAdminLogic:
         response = client.post(
             "/admin/add_course",
             json={"course": payload},
-            cookies={"admin": "true"},
+            cookies=admin_cookie(),
         )
         assert response.status_code == 400
         assert "already exists" in response.json()["detail"]
@@ -272,7 +316,7 @@ class TestApiRoutesAndAdminLogic:
         response = client.post(
             "/admin/add_course",
             json={"course": payload},
-            cookies={"admin": "true"},
+            cookies=admin_cookie(),
         )
         assert response.status_code == 400
         assert "Unknown prerequisite" in response.json()["detail"]
@@ -285,7 +329,7 @@ class TestApiRoutesAndAdminLogic:
         response = client.post(
             "/admin/add_course",
             json={"course": payload},
-            cookies={"admin": "true"},
+            cookies=admin_cookie(),
         )
 
         try:
@@ -303,7 +347,7 @@ class TestApiRoutesAndAdminLogic:
         monkeypatch.setattr(api_module, "CourseFinderOrchestrator", FakeCourseFinderOrchestrator)
 
         denied = client.post("/admin/update_data")
-        allowed = client.post("/admin/update_data", cookies={"admin": "true"})
+        allowed = client.post("/admin/update_data", cookies=admin_cookie())
 
         assert denied.status_code == 403
         assert allowed.status_code == 200
@@ -314,7 +358,7 @@ class TestApiRoutesAndAdminLogic:
         api_module.conversation_logs[:] = [{"session_id": "s1"}]
 
         denied = client.get("/admin/logs")
-        allowed = client.get("/admin/logs", cookies={"admin": "true"})
+        allowed = client.get("/admin/logs", cookies=admin_cookie())
 
         assert denied.status_code == 403
         assert allowed.status_code == 200
@@ -325,7 +369,7 @@ class TestApiRoutesAndAdminLogic:
         monkeypatch.setattr(api_module, "orchestrator", FakeCourseFinderOrchestrator())
 
         denied = client.get("/admin/courses")
-        allowed = client.get("/admin/courses", cookies={"admin": "true"})
+        allowed = client.get("/admin/courses", cookies=admin_cookie())
 
         assert denied.status_code == 403
         assert allowed.status_code == 200
@@ -347,7 +391,7 @@ class TestAdminAPIAddCourse:
         response = client.post(
             "/admin/add_course",
             json={"course": {"id": "TEST1001", "name": "Demo Course"}},
-            cookies={"admin": "true"},
+            cookies=admin_cookie(),
         )
         assert response.status_code == 400
         assert "Missing required fields" in response.json()["detail"]
@@ -370,7 +414,7 @@ class TestAdminAPIAddCourse:
         response = client.post(
             "/admin/add_course",
             json={"course": new_course},
-            cookies={"admin": "true"},
+            cookies=admin_cookie(),
         )
         assert response.status_code == 200
         assert response.json()["success"] is True
