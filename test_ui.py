@@ -111,9 +111,10 @@ class TestInternationalAdvisorUI(unittest.TestCase):
         self.assertIn("function handleRealtimeEvent(event)", self.html)
         self.assertIn("HTTP fallback", self.html)
 
-    def test_admin_mode_is_embedded_in_main_ui(self):
-        self.assertIn("Admin Mode", self.visible_text)
-        self.assertIn("Manage the course catalog", self.visible_text)
+    def test_management_is_embedded_in_main_ui(self):
+        self.assertIn("Management", self.visible_text)
+        self.assertIn("Review advising activity", self.visible_text)
+        self.assertIn("Enter Management", self.visible_text)
         self.assertIn("function openAdminMode()", self.html)
         self.assertIn("function loginAdmin(event)", self.html)
         self.assertIn("function bypassAdminLogin(options = {})", self.html)

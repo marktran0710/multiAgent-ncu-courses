@@ -21,7 +21,7 @@
 | Prerequisites               | Not checked              | Hard filter — locked courses shown with "complete first" chain              |
 | Clarification               | None                     | Agent asks user to clarify ambiguous course names                           |
 | **Web Interface**           | —                        | **FastAPI backend + HTML/JS frontend** with user chatbot and admin panel    |
-| **Admin Features**          | —                        | Add/edit courses, view logs, manage course catalogue                        |
+| **Management Features**     | —                        | Add/edit courses, view logs, manage course catalogue                        |
 | **Language Support**        | —                        | Course language filtering (English/Chinese)                                 |
 | **Degree Filtering**        | —                        | Degree level constraints (undergrad/master/PhD)                             |
 | **Interactive Suggestions** | —                        | Suggestions when no eligible courses found                                  |
@@ -197,7 +197,7 @@ The application includes a modern web UI built with FastAPI backend and vanilla 
 - **Minimal Responses**: Concise recommendations for users
 - **Interactive Suggestions**: Helpful prompts when no courses are found
 
-### Admin Mode
+### Management
 
 - **Login**: Password-protected access (default: admin123)
 - **Course Management**: Add/edit courses with validation
@@ -341,7 +341,7 @@ uvicorn api:app --host 127.0.0.1 --port 8010
 # Admin login: use ADMIN_PASSWORD
 ```
 
-For local classroom demos only, set `ADMIN_BYPASS_ENABLED=true` to let Admin Mode open without a password. Keep it `false` for deployed/public environments.
+For local classroom demos only, set `ADMIN_BYPASS_ENABLED=true` to let Management open without a password. Keep it `false` for deployed/public environments.
 
 `ENABLE_TRANSFORMER_EMBEDDINGS=false` keeps deployment lightweight and uses the built-in TF-IDF semantic fallback. Set it to `true` only on hosts with enough memory/disk and install `sentence-transformers`.
 
@@ -511,7 +511,7 @@ multiAgent-ncu-courses/
 ├── main.py                       # CLI entry point — REPL + CLI
 ├── static/
 │   ├── index.html                # User mode UI
-│   └── admin.html                # Admin mode UI
+│   └── admin.html                # Management UI
 ├── agents/
 │   ├── OrchestratorAgent.py      # Wires all agents together
 │   ├── IntakeAgent.py            # Agent 1 — profile extraction

@@ -952,7 +952,7 @@
             <div class="topbar-actions">
                 <div class="status-pill"><span class="status-dot"></span><span id="connectionStatus">Ready</span></div>
                 <button class="ghost-button" id="benchmarkPageButton" type="button">Benchmark</button>
-                <button class="ghost-button" id="adminModeButton" type="button">Admin</button>
+                <button class="ghost-button" id="adminModeButton" type="button">Management</button>
                 <button class="ghost-button" id="clearChatButton" type="button">Clear</button>
             </div>
         </header>
@@ -1032,8 +1032,8 @@
         <div class="admin-dialog">
             <header class="admin-header">
                 <div>
-                    <h2 id="adminTitle">Admin Mode</h2>
-                    <p>Manage the course catalog, refresh retrieval data, and review advising activity.</p>
+                    <h2 id="adminTitle">Management</h2>
+                    <p>Review advising activity, benchmark retrieval quality, and manage protected course data.</p>
                 </div>
                 <div class="admin-actions">
                     <button class="ghost-button" id="adminLogoutButton" type="button">Logout</button>
@@ -1044,10 +1044,10 @@
             <div class="admin-body">
                 <form class="admin-login" id="adminLoginForm">
                     <label>
-                        Admin password
-                        <input id="adminPasswordInput" type="password" autocomplete="current-password" placeholder="Enter admin password">
+                        Log access password
+                        <input id="adminPasswordInput" type="password" autocomplete="current-password" placeholder="Enter access password">
                     </label>
-                    <button class="primary-button" type="submit">Enter Admin Mode</button>
+                    <button class="primary-button" type="submit">Enter Management</button>
                     <button class="ghost-button" id="adminBypassButton" type="button" style="display:none;">Use Local Bypass</button>
                 </form>
 
@@ -1243,7 +1243,7 @@
             } catch (error) {
                 setAdminAuthenticated(false);
                 adminBypassButton.style.display = 'none';
-                showToast('Admin status unavailable.');
+                showToast('Management status unavailable.');
             }
         }
 
@@ -1275,7 +1275,7 @@
                 document.getElementById('adminPasswordInput').value = '';
                 setAdminAuthenticated(true);
                 await Promise.all([loadAdminCourses(), loadAdminLogs()]);
-                showToast('Admin mode enabled.');
+                showToast('Management enabled.');
             } catch (error) {
                 showToast(error.message);
             }
@@ -1289,7 +1289,7 @@
                 setAdminAuthenticated(true);
                 await Promise.all([loadAdminCourses(), loadAdminLogs()]);
                 if (!options.silent) {
-                    showToast('Admin mode enabled with local bypass.');
+                    showToast('Management enabled with local bypass.');
                 }
             } catch (error) {
                 showToast(error.message);
@@ -1299,7 +1299,7 @@
         async function logoutAdmin() {
             await fetch('/admin/logout', { method: 'POST' });
             setAdminAuthenticated(false);
-            showToast('Admin mode closed.');
+            showToast('Management closed.');
         }
 
         function setAdminTab(tab) {
