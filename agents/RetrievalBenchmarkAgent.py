@@ -60,6 +60,18 @@ class RetrievalBenchmarkAgent:
             "Wireless networks",
         ),
         BenchmarkCase(
+            "course_name_networks",
+            "Computer Networks",
+            ["CSIE3003"],
+            "Course-name ambiguity: Computer Networks",
+        ),
+        BenchmarkCase(
+            "course_name_communication_systems",
+            "Communication Systems",
+            ["EE3004"],
+            "Course-name ambiguity: Communication Systems",
+        ),
+        BenchmarkCase(
             "circuits",
             "integrated circuit VLSI mixed signal semiconductor design",
             ["EE3003", "EE4001", "EE5003", "EE5001"],

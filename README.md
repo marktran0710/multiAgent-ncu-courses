@@ -128,6 +128,30 @@ flowchart LR
     compare --> page["/benchmark page"]
 ```
 
+### Benchmark Special Cases
+
+The public `/benchmark` page compares the old retrieval baseline against the current Query RAG pipeline:
+
+- **Old version**: `BM25Agent + VectorAgent` fused by `FusionAgent`.
+- **Current version**: 8 retrieval methods fused with weighted RRF.
+- **Metrics**: Top-1, Recall@3, Recall@5, MRR, rank change, percentage-point change, and relative percentage change.
+
+Current benchmark set:
+
+| Metric | Old FusionAgent | Current Query RAG | Change |
+| --- | ---: | ---: | ---: |
+| Top-1 | 70% | 80% | +10.0 pp |
+| Recall@3 | 90% | 100% | +10.0 pp |
+| Recall@5 | 100% | 100% | 0.0 pp |
+| MRR | 0.792 | 0.883 | +9.1 pp |
+
+The benchmark includes 10 fixed advising cases: 3 improved, 7 stayed the same, and 0 regressed. Two intentionally ambiguous course-name cases make the old-vs-current difference easier to see:
+
+| Special Case | Expected Course | Old Rank | Current Rank | Difference |
+| --- | --- | ---: | ---: | ---: |
+| Computer Networks | `CSIE3003` | #3 | #1 | +2 ranks |
+| Communication Systems | `EE3004` | #3 | #2 | +1 rank |
+
 ---
 
 ## Agents
