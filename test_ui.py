@@ -115,6 +115,7 @@ class TestInternationalAdvisorUI(unittest.TestCase):
         self.assertIn("Management", self.visible_text)
         self.assertIn("Review advising activity", self.visible_text)
         self.assertIn("Enter Management", self.visible_text)
+        self.assertIn("Dashboard > Environment > ADMIN_PASSWORD", self.visible_text)
         self.assertIn("function openAdminMode()", self.html)
         self.assertIn("function loginAdmin(event)", self.html)
         self.assertIn("function bypassAdminLogin(options = {})", self.html)
