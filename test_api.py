@@ -72,11 +72,13 @@ def isolated_api_state(monkeypatch):
     fake = FakeOrchestrator()
     monkeypatch.setattr(api_module, "orchestrator", fake)
     api_module.user_sessions.clear()
+    api_module.chat_histories.clear()
     api_module.last_recommendations.clear()
     api_module.conversation_logs.clear()
     api_module.admin_sessions.clear()
     yield fake
     api_module.user_sessions.clear()
+    api_module.chat_histories.clear()
     api_module.last_recommendations.clear()
     api_module.conversation_logs.clear()
     api_module.admin_sessions.clear()
@@ -98,6 +100,10 @@ class TestChatLogic:
         assert api_module.last_recommendations["s1"] == "CSIE4001"
         assert details["verdict"]["best_course_id"] == "CSIE4001"
         assert api_module.conversation_logs[-1]["session_id"] == "s1"
+        assert api_module.chat_histories["s1"] == [
+            {"sender": "user", "text": "I want ML"},
+            {"sender": "bot", "text": "I recommend CSIE4001."},
+        ]
         assert api_module.conversation_logs[-1]["retrieval_methods"]["bm25_agent"][0]["id"] == "CSIE4001"
         assert api_module.conversation_logs[-1]["response_evaluation"]["approved"] is True
         assert "Raw retrieval scores use different units" in api_module.conversation_logs[-1]["score_explanation"]
@@ -122,6 +128,10 @@ class TestChatLogic:
         assert details["verdict"]["best_course_id"] == "CSIE4001"
         assert len(isolated_api_state.calls) == 1
         assert api_module.conversation_logs[-1]["bot_response"] == output
+        assert api_module.chat_histories["s1"][-2:] == [
+            {"sender": "user", "text": "ok but the course taught by english or chinese"},
+            {"sender": "bot", "text": "[CSIE4001] Machine Learning is taught in Chinese."},
+        ]
         assert api_module.conversation_logs[-1]["score_explanation"] == api_module.SCORE_EXPLANATION
 
     def test_language_follow_up_without_previous_course_uses_normal_chat(self, isolated_api_state):
@@ -147,6 +157,18 @@ class TestChatLogic:
         assert "session_id" in response.cookies
         assert response.json()["response"] == "I recommend CSIE4001."
         assert response.json()["profile"]["search_query"] == "machine learning"
+        assert response.json()["history"][-1]["text"] == "I recommend CSIE4001."
+
+    def test_chat_history_endpoint_uses_session_query_param(self, isolated_api_state):
+        client = TestClient(app)
+        api_module.run_chat_message("known-session", "I want ML")
+
+        response = client.get("/chat/history?session_id=known-session")
+
+        assert response.status_code == 200
+        assert response.json()["session_id"] == "known-session"
+        assert response.json()["profile"]["search_query"] == "machine learning"
+        assert response.json()["history"][0] == {"sender": "user", "text": "I want ML"}
 
     def test_profile_endpoint_returns_404_without_session(self, isolated_api_state):
         client = TestClient(app)
@@ -156,7 +178,7 @@ class TestChatLogic:
     def test_profile_endpoint_returns_existing_profile(self, isolated_api_state):
         client = TestClient(app)
         api_module.user_sessions["known"] = make_profile("vision")
-        response = client.get("/profile", cookies={"session_id": "known"})
+        response = client.get("/profile?session_id=known")
         assert response.status_code == 200
         assert response.json()["search_query"] == "vision"
 
@@ -166,6 +188,7 @@ class TestChatLogic:
             session_event = websocket.receive_json()
             assert session_event["type"] == "session"
             assert session_event["session_id"] == "ws-test"
+            assert session_event["history"] == []
 
             websocket.send_json({"message": "   "})
             error_event = websocket.receive_json()
@@ -182,6 +205,11 @@ class TestChatLogic:
             assert response_event["verdict"]["best_course_id"] == "CSIE4001"
             assert response_event["response_evaluation"]["approved"] is True
             assert done_event["type"] == "done"
+
+        with client.websocket_connect("/ws/chat?session_id=ws-test") as websocket:
+            restored_session = websocket.receive_json()
+            assert restored_session["type"] == "session"
+            assert restored_session["history"][-1]["text"] == "I recommend CSIE4001."
 
 
 def valid_course_payload(course_id: str = "TEST9001") -> dict:

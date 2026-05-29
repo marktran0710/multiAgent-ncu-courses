@@ -19,6 +19,7 @@ orchestrator = CourseFinderOrchestrator()
 
 # In-memory storage for simplicity (use database in production)
 user_sessions: Dict[str, UserProfile] = {}
+chat_histories: Dict[str, list[dict[str, str]]] = {}
 last_recommendations: Dict[str, str] = {}
 conversation_logs: list = []
 admin_sessions: set[str] = set()
@@ -43,6 +44,18 @@ class LoginRequest(BaseModel):
 
 def serialize_profile(profile: Optional[UserProfile]) -> Optional[dict]:
     return profile.__dict__ if profile else None
+
+def serialize_chat_history(session_id: str) -> list[dict[str, str]]:
+    return chat_histories.get(session_id, [])
+
+def remember_chat_turn(session_id: str, user_message: str, bot_response: str) -> None:
+    history = chat_histories.setdefault(session_id, [])
+    history.extend([
+        {"sender": "user", "text": user_message},
+        {"sender": "bot", "text": bot_response},
+    ])
+    if len(history) > 40:
+        del history[:-40]
 
 def is_admin_request(req: Request) -> bool:
     token = req.cookies.get("admin_session")
@@ -131,6 +144,7 @@ def run_chat_message(session_id: str, message: str) -> tuple[str, Optional[UserP
                 "score_explanation": details.get("score_explanation", SCORE_EXPLANATION),
                 "profile": serialize_profile(profile),
             })
+            remember_chat_turn(session_id, message, user_output)
             return language_answer
 
     profile = user_sessions.get(session_id)
@@ -156,6 +170,7 @@ def run_chat_message(session_id: str, message: str) -> tuple[str, Optional[UserP
         "score_explanation": details.get("score_explanation", SCORE_EXPLANATION),
         "profile": serialize_profile(new_profile),
     })
+    remember_chat_turn(session_id, message, user_output)
     return user_output, new_profile, details
 
 @app.get("/", response_class=HTMLResponse)
@@ -186,11 +201,16 @@ async def chat(request: ChatRequest, req: Request, response: Response):
     session_id = req.cookies.get("session_id")
     if not session_id:
         session_id = str(uuid.uuid4())
-        response.set_cookie(key="session_id", value=session_id)
+    response.set_cookie(key="session_id", value=session_id, httponly=False, samesite="lax", max_age=60 * 60 * 24 * 30)
 
     user_output, new_profile, _ = run_chat_message(session_id, request.message)
 
-    return {"response": user_output, "profile": serialize_profile(new_profile)}
+    return {
+        "response": user_output,
+        "profile": serialize_profile(new_profile),
+        "session_id": session_id,
+        "history": serialize_chat_history(session_id),
+    }
 
 @app.websocket("/ws/chat")
 async def chat_realtime(websocket: WebSocket):
@@ -204,6 +224,7 @@ async def chat_realtime(websocket: WebSocket):
         "type": "session",
         "session_id": session_id,
         "profile": serialize_profile(user_sessions.get(session_id)),
+        "history": serialize_chat_history(session_id),
     })
 
     try:
@@ -235,10 +256,21 @@ async def chat_realtime(websocket: WebSocket):
 
 @app.get("/profile")
 async def get_profile(req: Request):
-    session_id = req.cookies.get("session_id")
+    session_id = req.query_params.get("session_id") or req.cookies.get("session_id")
     if not session_id or session_id not in user_sessions:
         raise HTTPException(status_code=404, detail="No profile found")
     return user_sessions[session_id].__dict__
+
+@app.get("/chat/history")
+async def get_chat_history(req: Request):
+    session_id = req.query_params.get("session_id") or req.cookies.get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=404, detail="No session found")
+    return {
+        "session_id": session_id,
+        "profile": serialize_profile(user_sessions.get(session_id)),
+        "history": serialize_chat_history(session_id),
+    }
 
 @app.post("/admin/login")
 async def admin_login(request: LoginRequest, response: Response):

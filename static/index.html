@@ -1168,6 +1168,7 @@
         let activePromptGroup = 'Goals';
         let chatSocket = null;
         let realtimeSessionId = localStorage.getItem('ncu_realtime_session_id') || crypto.randomUUID();
+        let sessionHistoryLoaded = false;
         let adminCourses = [];
         let adminLogs = [];
         let adminBenchmark = null;
@@ -1175,9 +1176,9 @@
 
         function init() {
             renderPrompts();
-            addMessage('bot', "Welcome. Share your academic goal, completed courses, language preference, or schedule constraints.");
             bindEvents();
             connectRealtime();
+            loadChatHistory();
             loadProfile();
             updateComposer();
         }
@@ -1719,6 +1720,9 @@
             if (event.type === 'session') {
                 realtimeSessionId = event.session_id || realtimeSessionId;
                 localStorage.setItem('ncu_realtime_session_id', realtimeSessionId);
+                if (event.history) {
+                    renderChatHistory(event.history);
+                }
                 if (event.profile) {
                     updateProfile(event.profile);
                     chatSummary.textContent = profileSummary(event.profile);
@@ -1784,6 +1788,10 @@
                 }
 
                 const data = await response.json();
+                if (data.session_id) {
+                    realtimeSessionId = data.session_id;
+                    localStorage.setItem('ncu_realtime_session_id', realtimeSessionId);
+                }
                 hideTyping();
                 addMessage('bot', data.response || 'I could not generate a recommendation.');
                 updateProfile(data.profile);
@@ -1796,6 +1804,23 @@
             } finally {
                 setSending(false);
             }
+        }
+
+        function renderChatHistory(history) {
+            if (!Array.isArray(history) || !history.length) {
+                if (!sessionHistoryLoaded && !chatContainer.children.length) {
+                    addMessage('bot', "Welcome. Share your academic goal, completed courses, language preference, or schedule constraints.");
+                }
+                sessionHistoryLoaded = true;
+                return;
+            }
+
+            chatContainer.replaceChildren();
+            history.forEach((item) => {
+                addMessage(item.sender || 'bot', item.text || '');
+            });
+            sessionHistoryLoaded = true;
+            addActivity('Restored this student session.');
         }
 
         function addMessage(sender, text) {
@@ -1919,7 +1944,7 @@
 
         async function loadProfile() {
             try {
-                const response = await fetch('/profile');
+                const response = await fetch(`/profile?session_id=${encodeURIComponent(realtimeSessionId)}`);
                 if (response.ok) {
                     const profile = await response.json();
                     updateProfile(profile);
@@ -1928,6 +1953,24 @@
                 }
             } catch (error) {
                 updateProfile(null);
+            }
+        }
+
+        async function loadChatHistory() {
+            try {
+                const response = await fetch(`/chat/history?session_id=${encodeURIComponent(realtimeSessionId)}`);
+                if (!response.ok) {
+                    renderChatHistory([]);
+                    return;
+                }
+                const data = await response.json();
+                renderChatHistory(data.history || []);
+                if (data.profile) {
+                    updateProfile(data.profile);
+                    chatSummary.textContent = profileSummary(data.profile);
+                }
+            } catch (error) {
+                renderChatHistory([]);
             }
         }
 
