@@ -30,6 +30,36 @@ from agents.ResponseEvaluationAgent import ResponseEvaluationAgent
 from agents.ResponseAgent import ResponseAgent
 
 
+class TestIntakeAgentFallback:
+    def test_heuristic_fallback_extracts_completed_course_id(self, monkeypatch):
+        agent = IntakeAgent()
+        monkeypatch.setattr(agent, "_call_llm", lambda messages: (_ for _ in ()).throw(RuntimeError("offline")))
+
+        profile = agent.process("I completed CSIE2001 and want to study algorithms")
+
+        assert profile is not None
+        assert "CSIE2001" in profile.completed_courses
+        assert profile.goals == ["study algorithms"]
+
+    def test_heuristic_fallback_updates_existing_completed_courses(self, monkeypatch):
+        agent = IntakeAgent()
+        existing = UserProfile(
+            raw_input="I want data mining",
+            academic_year=2,
+            degree_level="undergrad",
+            completed_courses=["CSIE1001"],
+            goals=["data mining"],
+            constraints=[],
+            search_query="data mining",
+        )
+        monkeypatch.setattr(agent, "_call_llm", lambda messages: (_ for _ in ()).throw(RuntimeError("offline")))
+
+        updated = agent.process("I also finished CSIE2001", existing_profile=existing)
+
+        assert updated is existing
+        assert updated.completed_courses == ["CSIE1001", "CSIE2001"]
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  Fixtures
 # ─────────────────────────────────────────────────────────────────────────────

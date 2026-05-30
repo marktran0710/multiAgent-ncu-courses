@@ -139,12 +139,14 @@ class IntakeAgent:
         else:
             year = 1
 
+        completed_courses = self._extract_completed_courses(raw_input)
+        goals = self._extract_goals(raw_input)
         args = self._apply_language_hint(
             raw_input,
             {
                 "academic_year": year,
-                "completed_courses": [],
-                "goals": [],
+                "completed_courses": completed_courses,
+                "goals": goals,
                 "constraints": [],
                 "search_query": raw_input,
             },
@@ -154,13 +156,49 @@ class IntakeAgent:
             raw_input=raw_input,
             academic_year=year,
             degree_level=degree_from_year(year),  # tự map
-            completed_courses=[],
-            goals=[],
+            completed_courses=completed_courses,
+            goals=goals,
             constraints=args.get("constraints") or [],
             search_query=raw_input,
             preferred_language=UserProfile._extract_preferred_language(args.get("constraints") or []),
             language_priority=UserProfile._extract_language_priority(args.get("constraints") or []),
         )
+
+    @staticmethod
+    def _extract_completed_courses(raw_input: str) -> list[str]:
+        text = raw_input.lower()
+        completion_intent = re.search(
+            r"\b(completed|finished|passed|took|taken|done with|already did|have done|have finished)\b",
+            text,
+        )
+        if not completion_intent:
+            return []
+
+        completed = []
+        upper_input = raw_input.upper()
+        for course_id in sorted(VALID_COURSE_IDS):
+            if re.search(rf"\b{re.escape(course_id)}\b", upper_input):
+                completed.append(course_id)
+
+        for course in RAW_COURSES:
+            if course["name"].lower() in text and course["id"] not in completed:
+                completed.append(course["id"])
+
+        return completed
+
+    @staticmethod
+    def _extract_goals(raw_input: str) -> list[str]:
+        match = re.search(
+            r"\b(?:want to|would like to|interested in|learn|study|looking for)\b\s+(?P<goal>.+)",
+            raw_input,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            return []
+
+        goal = re.sub(r"\b(course|class|recommendation)\b", "", match.group("goal"), flags=re.IGNORECASE)
+        goal = re.sub(r"\s+", " ", goal).strip(" .")
+        return [goal] if goal else []
 
     @staticmethod
     def _is_on_topic(text: str) -> bool:
@@ -297,8 +335,8 @@ class IntakeAgent:
             fallback_profile = self._heuristic_fallback(raw_input)
             if existing_profile:
                 existing_profile.update(raw_input, {
-                    "completed_courses": [],
-                    "goals": [],
+                    "completed_courses": fallback_profile.completed_courses,
+                    "goals": fallback_profile.goals,
                     "constraints": fallback_profile.constraints,
                     "search_query": fallback_profile.search_query,
                 })
