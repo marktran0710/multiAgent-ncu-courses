@@ -74,12 +74,21 @@ class TestPipelineEndToEnd:
         orchestrator = CourseFinderOrchestrator()
         benchmark = RetrievalBenchmarkAgent(orchestrator).run(top_k=6)
 
+        assert benchmark["case_count"] == 100
         assert benchmark["comparison"]["legacy_best"]["method"] == "legacy_bm25_vector_rag"
         assert benchmark["comparison"]["current"]["method"] == "final_query_rag_fusion"
         assert "special_cases" in benchmark["comparison"]
         assert "percentage_point_change" in benchmark["comparison"]
         assert "relative_percent_change" in benchmark["comparison"]
         assert benchmark["comparison"]["case_counts"]["improved"] >= 0
+        assert all(
+            case["comparison"]["outcome"] != "same"
+            or case["comparison"]["top_three_changed"]
+            for case in benchmark["comparison"]["special_cases"]
+        )
+        assert benchmark["comparison"]["special_case_counts"]["shown"] >= 10
+        assert benchmark["profile_benchmark"]["case_count"] == 6
+        assert benchmark["profile_benchmark"]["failed"] == 0
 
     @patch("function.main.call_groq_with_tools")
     def test_beginner_gets_no_prereq_course(self, mock_groq):

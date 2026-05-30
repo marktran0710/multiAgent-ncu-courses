@@ -281,7 +281,8 @@ class TestFusionAgent:
         eligible, locked = fusion_agent.process(bm25, vec, fresh_profile)
         eligible_ids = [r.course.id for r in eligible]
         assert "CSIE3001" in eligible_ids
-        assert locked == []
+        assert [r.course.id for r in locked] == ["CSIE1001"]
+        assert locked[0].filter_reason == "Course already completed."
 
     def test_missing_prereqs_attached_to_locked(self, fusion_agent, beginner_profile):
         bm25 = self._make_results(["CSIE2001"], "bm25")
@@ -303,7 +304,7 @@ class TestFusionAgent:
             raw_input="I need an English course",
             academic_year=3,
             degree_level="undergrad",
-            completed_courses=["CSIE1001", "CSIE2001", "CSIE1002", "MATH2001"],
+            completed_courses=["CSIE2001", "CSIE1002", "MATH2001"],
             goals=["natural language processing"],
             constraints=["English only"],
             preferred_language="English",
@@ -339,6 +340,24 @@ class TestFusionAgent:
 
         assert locked == []
         assert [r.course.language for r in eligible] == ["English", "Chinese"]
+
+    def test_completed_courses_are_locked_not_recommended(self, fusion_agent, course_map):
+        profile = UserProfile(
+            raw_input="I finished machine learning and want AI",
+            academic_year=4,
+            degree_level="undergrad",
+            completed_courses=["CSIE4001"],
+            goals=["AI"],
+            constraints=[],
+            search_query="machine learning AI",
+        )
+        result = RetrievalResult(course_map["CSIE4001"], 0.9, "fusion")
+
+        eligible, locked = fusion_agent.filter_results([result], profile)
+
+        assert eligible == []
+        assert [r.course.id for r in locked] == ["CSIE4001"]
+        assert locked[0].filter_reason == "Course already completed."
 
     def test_empty_input(self, fusion_agent, fresh_profile):
         eligible, locked = fusion_agent.process([], [], fresh_profile)

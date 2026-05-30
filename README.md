@@ -140,17 +140,21 @@ Current benchmark set:
 
 | Metric | Old FusionAgent | Current Query RAG | Change |
 | --- | ---: | ---: | ---: |
-| Top-1 | 70% | 80% | +10.0 pp |
-| Recall@3 | 90% | 100% | +10.0 pp |
+| Top-1 | 94% | 95% | +1.0 pp |
+| Recall@3 | 100% | 100% | 0.0 pp |
 | Recall@5 | 100% | 100% | 0.0 pp |
-| MRR | 0.792 | 0.883 | +9.1 pp |
+| MRR | 0.967 | 0.975 | +0.8 pp |
 
-The benchmark includes 10 fixed advising cases: 3 improved, 7 stayed the same, and 0 regressed. Two intentionally ambiguous course-name cases make the old-vs-current difference easier to see:
+The benchmark includes 100 fixed cases: 70 course-title queries and 30 course-description topic queries. In the current run, 2 improved, 98 stayed the same by expected-course rank, and 0 regressed. The benchmark page hides identical results and shows changed examples in the Special Cases table: rank changes first, then up to 10 cases where the expected rank is the same but the top-3 result order changes.
 
 | Special Case | Expected Course | Old Rank | Current Rank | Difference |
 | --- | --- | ---: | ---: | ---: |
 | Computer Networks | `CSIE3003` | #3 | #1 | +2 ranks |
 | Communication Systems | `EE3004` | #3 | #2 | +1 rank |
+
+Additional special rows can show `top 3 changed` when both versions find the expected course at the same rank but produce a different surrounding shortlist.
+
+The benchmark page also includes 6 user-profile cases. These verify that completed courses are not recommended again, English-required requests block Chinese-taught courses, English-preferred requests reorder instead of filtering, undergraduate profiles cannot access master's courses, master's profiles can access eligible graduate courses, and missing prerequisites keep relevant courses locked.
 
 ---
 

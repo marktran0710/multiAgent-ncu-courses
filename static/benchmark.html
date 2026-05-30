@@ -172,6 +172,16 @@
             font-weight: 850;
         }
 
+        .pill.fail {
+            background: #ffe4e6;
+            color: var(--rose);
+        }
+
+        .compact-list {
+            margin: 0;
+            padding-left: 16px;
+        }
+
         @media (max-width: 780px) {
             .topbar {
                 align-items: flex-start;
@@ -189,7 +199,7 @@
     <header class="topbar">
         <div>
             <h1>Benchmark: Old FusionAgent vs Current Query RAG</h1>
-            <p>BM25Agent + VectorAgent using FusionAgent compared with the current 8-way retrieval pipeline.</p>
+            <p>100 deterministic cases compare BM25Agent + VectorAgent using FusionAgent with the current 8-way retrieval pipeline.</p>
         </div>
         <button class="ghost-button" type="button" onclick="window.location.href='/'">Back to Chat</button>
     </header>
@@ -221,8 +231,28 @@
         </section>
 
         <section class="card">
+            <h2>Profile-Aware Cases</h2>
+            <p class="muted" id="profileSummary">Loading profile benchmark...</p>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Case</th>
+                            <th>Profile Signal</th>
+                            <th>Expected</th>
+                            <th>Top Eligible</th>
+                            <th>Top Locked</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="profileRows"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card">
             <h2>Special Cases</h2>
-            <p class="muted">Each case compares where the first expected course appears in the old result and the current result.</p>
+            <p class="muted" id="specialSummary">Only changed examples are shown here. Same-rank cases with identical top results are counted in the summary but hidden from this table.</p>
             <div class="table-wrap">
                 <table>
                     <thead>
@@ -246,6 +276,9 @@
         const metricGrid = document.getElementById('metricGrid');
         const comparisonRows = document.getElementById('comparisonRows');
         const caseRows = document.getElementById('caseRows');
+        const profileRows = document.getElementById('profileRows');
+        const profileSummary = document.getElementById('profileSummary');
+        const specialSummary = document.getElementById('specialSummary');
         const summaryText = document.getElementById('summaryText');
 
         const metrics = [
@@ -275,7 +308,7 @@
             const relativeChange = comparison.relative_percent_change || {};
             const counts = comparison.case_counts || {};
 
-            summaryText.textContent = `${data.case_count} fixed advising cases. Current Query RAG improved ${counts.improved || 0}, matched ${counts.same || 0}, and regressed ${counts.regressed || 0} compared with old BM25Agent + VectorAgent FusionAgent.`;
+            summaryText.textContent = `${data.case_count} fixed benchmark cases: 70 course-title queries plus 30 topic queries. Current Query RAG improved ${counts.improved || 0}, matched ${counts.same || 0}, and regressed ${counts.regressed || 0} compared with old BM25Agent + VectorAgent FusionAgent.`;
 
             metricGrid.innerHTML = metrics.map(([key, label]) => {
                 const points = pointChange[key] ?? 0;
@@ -296,7 +329,12 @@
                 ${renderComparisonRow('Current version', current)}
             `;
 
-            caseRows.innerHTML = (comparison.special_cases || []).map((item) => {
+            renderProfileBenchmark(data.profile_benchmark || {});
+
+            const changedCases = comparison.special_cases || [];
+            const specialCounts = comparison.special_case_counts || {};
+            specialSummary.textContent = `${specialCounts.shown || changedCases.length} changed examples shown: ${specialCounts.rank_changed || 0} rank changes plus up to 10 top-3 order changes. Same-rank cases with identical top results are hidden.`;
+            caseRows.innerHTML = changedCases.length ? changedCases.map((item) => {
                 const comp = item.comparison || {};
                 return `
                     <tr>
@@ -304,9 +342,46 @@
                         <td>${escapeHtml((item.expected_ids || []).join(', '))}</td>
                         <td>${formatRank(comp.legacy_rank)}<br><span class="muted">${escapeHtml(comp.legacy_label || '')}</span></td>
                         <td>${formatRank(comp.current_rank)}<br><span class="muted">${escapeHtml(comp.current_label || '')}</span></td>
-                        <td><span class="pill">${escapeHtml(formatRankDelta(comp.rank_delta))}</span></td>
+                        <td><span class="pill">${escapeHtml(formatChange(comp))}</span></td>
                         <td>${escapeHtml((comp.legacy_top_courses || []).slice(0, 3).join(', '))}</td>
                         <td>${escapeHtml((comp.current_top_courses || []).slice(0, 3).join(', '))}</td>
+                    </tr>
+                `;
+            }).join('') : `
+                <tr>
+                    <td colspan="7" class="muted">No rank changes in this benchmark run.</td>
+                </tr>
+            `;
+        }
+
+        function renderProfileBenchmark(profileBenchmark) {
+            const cases = profileBenchmark.cases || [];
+            profileSummary.textContent = `${profileBenchmark.case_count || 0} user-profile cases: ${profileBenchmark.passed || 0} passed, ${profileBenchmark.failed || 0} failed. These cases test completed courses, teaching language priority, degree level, and prerequisites.`;
+            profileRows.innerHTML = cases.map((item) => {
+                const profile = item.profile || {};
+                const lockedReasons = Object.entries(item.locked_reasons || {}).slice(0, 3)
+                    .map(([courseId, reason]) => `<li>${escapeHtml(courseId)}: ${escapeHtml(reason)}</li>`)
+                    .join('');
+                const profileSignal = [
+                    `year ${profile.academic_year || 'n/a'}`,
+                    profile.degree_level || 'n/a',
+                    profile.preferred_language ? `${profile.preferred_language} ${profile.language_priority || ''}` : 'no language preference',
+                    `${(profile.completed_courses || []).length} completed`
+                ].join(' | ');
+                return `
+                    <tr>
+                        <td><strong>${escapeHtml(item.focus)}</strong><br><span class="muted">${escapeHtml(item.query)}</span></td>
+                        <td>${escapeHtml(profileSignal)}</td>
+                        <td>
+                            <strong>Eligible:</strong> ${escapeHtml((item.expected_eligible || []).join(', ') || 'none')}<br>
+                            <strong>Locked:</strong> ${escapeHtml((item.expected_locked || []).join(', ') || 'none')}
+                        </td>
+                        <td>${escapeHtml((item.top_eligible || []).join(', ') || 'none')}</td>
+                        <td>
+                            ${escapeHtml((item.top_locked || []).join(', ') || 'none')}
+                            ${lockedReasons ? `<ul class="compact-list">${lockedReasons}</ul>` : ''}
+                        </td>
+                        <td><span class="pill ${item.passed ? '' : 'fail'}">${item.passed ? 'passed' : 'failed'}</span></td>
                     </tr>
                 `;
             }).join('');
@@ -348,6 +423,15 @@
             if (delta > 0) return `+${delta} ranks`;
             if (delta < 0) return `${delta} ranks`;
             return 'same';
+        }
+
+        function formatChange(comp) {
+            if (typeof comp.rank_delta === 'number' && comp.rank_delta !== 0) {
+                return formatRankDelta(comp.rank_delta);
+            }
+            if (comp.top_result_changed) return 'top result changed';
+            if (comp.top_three_changed) return 'top 3 changed';
+            return 'changed';
         }
 
         function escapeHtml(value) {

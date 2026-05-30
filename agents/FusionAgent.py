@@ -49,6 +49,12 @@ class FusionAgent:
 
         eligible, locked = [], []
         for r in fused:
+            if r.course.id in profile.completed_courses:
+                r.filter_reason = "Course already completed."
+                r.missing_prereqs = []
+                locked.append(r)
+                continue
+
             required_degree = r.course.degree.lower()
             profile_degree = profile.degree_level.lower()
             if DEGREE_RANK.get(required_degree, 1) > DEGREE_RANK.get(profile_degree, 1):

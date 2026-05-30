@@ -150,8 +150,13 @@ class TestInternationalAdvisorUI(unittest.TestCase):
         self.assertIn("BM25Agent + VectorAgent using FusionAgent", visible_text)
         self.assertIn("percentage_point_change", html)
         self.assertIn("relative_percent_change", html)
+        self.assertIn("profile_benchmark", html)
+        self.assertIn("Profile-Aware Cases", visible_text)
         self.assertIn("/benchmark/data", html)
         self.assertIn("Special Cases", visible_text)
+        self.assertIn("Same-rank cases with identical top results", visible_text)
+        self.assertIn("formatChange", html)
+        self.assertIn("top 3 changed", html)
 
     def test_no_old_generic_branding_remains(self):
         self.assertNotIn("<h1>Course Finder</h1>", self.html)
