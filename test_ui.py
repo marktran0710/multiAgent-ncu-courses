@@ -158,6 +158,7 @@ class TestInternationalAdvisorUI(unittest.TestCase):
         self.assertIn("Case Detail", visible_text)
         self.assertIn("Top retrieved contexts", html)
         self.assertIn("Why hard", html)
+        self.assertIn("<strong>Input</strong>", html)
         self.assertIn("data-ragas-detail", html)
         self.assertIn("ragasDetailModal", html)
         self.assertIn("openRagasDetail", html)

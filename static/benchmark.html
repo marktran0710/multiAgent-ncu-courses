@@ -588,6 +588,10 @@
             ragasDetailTitle.textContent = item.focus || 'Case Detail';
             ragasDetailSubtitle.textContent = item.query || '';
             ragasDetailBody.innerHTML = `
+                <div class="detail-box">
+                    <strong>Input</strong>
+                    <span class="muted">${escapeHtml(item.query || 'n/a')}</span>
+                </div>
                 <div class="detail-grid">
                     <div class="detail-box">
                         <strong>Expected</strong>
