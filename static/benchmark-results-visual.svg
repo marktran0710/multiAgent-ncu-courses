@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="950" viewBox="0 0 1500 950" role="img" aria-labelledby="title desc">
+  <title id="title">Benchmark Results Visualization</title>
+  <desc id="desc">Visualization of old versus current benchmark metrics, special case counts, and RAGAS-style evaluation scores.</desc>
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.13"/>
+    </filter>
+    <style>
+      .bg { fill: #f3f6f8; }
+      .title { font: 800 36px Arial, sans-serif; fill: #10243e; }
+      .subtitle { font: 500 18px Arial, sans-serif; fill: #5f6f82; }
+      .panel { fill: #ffffff; stroke: #d9e1ea; stroke-width: 2; rx: 16; filter: url(#shadow); }
+      .card { fill: #ffffff; stroke: #d9e1ea; stroke-width: 2; rx: 12; }
+      .old { fill: #94a3b8; }
+      .new { fill: #087f7b; }
+      .ragas { fill: #1f5f99; }
+      .warn { fill: #b45309; }
+      .label { font: 800 19px Arial, sans-serif; fill: #172033; }
+      .small { font: 500 15px Arial, sans-serif; fill: #5f6f82; }
+      .tiny { font: 700 13px Arial, sans-serif; fill: #334155; }
+      .num { font: 800 28px Arial, sans-serif; fill: #10243e; }
+      .white { font: 800 18px Arial, sans-serif; fill: #ffffff; }
+      .axis { stroke: #cbd5e1; stroke-width: 2; }
+      .grid { stroke: #e2e8f0; stroke-width: 1; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1500" height="950"/>
+  <text class="title" x="70" y="70">Benchmark Results</text>
+  <text class="subtitle" x="70" y="102">100 deterministic course-retrieval cases: old BM25 + Vector baseline vs current Query RAG fusion</text>
+
+  <rect class="panel" x="55" y="135" width="905" height="470"/>
+  <text class="label" x="90" y="178">Old vs Current Retrieval Metrics</text>
+  <text class="small" x="90" y="205">Higher is better. Current Query RAG improves Top-1 and MRR while keeping Recall@3 and Recall@5 at 100%.</text>
+
+  <line class="grid" x1="210" y1="255" x2="880" y2="255"/>
+  <line class="grid" x1="210" y1="320" x2="880" y2="320"/>
+  <line class="grid" x1="210" y1="385" x2="880" y2="385"/>
+  <line class="grid" x1="210" y1="450" x2="880" y2="450"/>
+  <line class="grid" x1="210" y1="515" x2="880" y2="515"/>
+  <line class="axis" x1="210" y1="535" x2="880" y2="535"/>
+
+  <text class="tiny" x="165" y="260">100%</text>
+  <text class="tiny" x="171" y="325">75%</text>
+  <text class="tiny" x="171" y="390">50%</text>
+  <text class="tiny" x="171" y="455">25%</text>
+  <text class="tiny" x="176" y="520">0%</text>
+
+  <text class="tiny" x="244" y="565" text-anchor="middle">Top-1</text>
+  <rect class="old" x="225" y="290.6" width="26" height="244.4"/>
+  <rect class="new" x="258" y="288" width="26" height="247"/>
+  <text class="tiny" x="254" y="585" text-anchor="middle">94 → 95%</text>
+
+  <text class="tiny" x="415" y="565" text-anchor="middle">Recall@3</text>
+  <rect class="old" x="396" y="275" width="26" height="260"/>
+  <rect class="new" x="429" y="275" width="26" height="260"/>
+  <text class="tiny" x="425" y="585" text-anchor="middle">100 → 100%</text>
+
+  <text class="tiny" x="586" y="565" text-anchor="middle">Recall@5</text>
+  <rect class="old" x="567" y="275" width="26" height="260"/>
+  <rect class="new" x="600" y="275" width="26" height="260"/>
+  <text class="tiny" x="596" y="585" text-anchor="middle">100 → 100%</text>
+
+  <text class="tiny" x="757" y="565" text-anchor="middle">MRR</text>
+  <rect class="old" x="738" y="283.6" width="26" height="251.4"/>
+  <rect class="new" x="771" y="281.5" width="26" height="253.5"/>
+  <text class="tiny" x="767" y="585" text-anchor="middle">0.967 → 0.975</text>
+
+  <rect class="old" x="720" y="168" width="18" height="18"/>
+  <text class="tiny" x="746" y="182">Old baseline</text>
+  <rect class="new" x="820" y="168" width="18" height="18"/>
+  <text class="tiny" x="846" y="182">Current</text>
+
+  <rect class="panel" x="1000" y="135" width="440" height="470"/>
+  <text class="label" x="1035" y="178">Special Case Summary</text>
+  <text class="small" x="1035" y="205">Cases where current results differ from the old baseline.</text>
+
+  <rect class="card" x="1035" y="240" width="170" height="120"/>
+  <text class="num" x="1120" y="292" text-anchor="middle">2</text>
+  <text class="small" x="1120" y="324" text-anchor="middle">rank improved</text>
+
+  <rect class="card" x="1235" y="240" width="170" height="120"/>
+  <text class="num" x="1320" y="292" text-anchor="middle">0</text>
+  <text class="small" x="1320" y="324" text-anchor="middle">regressed</text>
+
+  <rect class="card" x="1035" y="390" width="170" height="120"/>
+  <text class="num" x="1120" y="442" text-anchor="middle">98</text>
+  <text class="small" x="1120" y="474" text-anchor="middle">same rank</text>
+
+  <rect class="card" x="1235" y="390" width="170" height="120"/>
+  <text class="num" x="1320" y="442" text-anchor="middle">35</text>
+  <text class="small" x="1320" y="474" text-anchor="middle">top-3 changed</text>
+
+  <text class="small" x="1035" y="552">Shown in page: 12 special rows</text>
+  <text class="tiny" x="1035" y="580">2 rank changes + 10 top-3 examples</text>
+
+  <rect class="panel" x="55" y="640" width="1385" height="230"/>
+  <text class="label" x="90" y="685">RAGAS-Style Evaluation</text>
+  <text class="small" x="90" y="712">Measures retrieval quality, grounding, relevancy, and correctness for the current Query RAG output.</text>
+
+  <g transform="translate(95,745)">
+    <text class="tiny" x="0" y="19">Context Precision</text>
+    <rect class="card" x="0" y="30" width="185" height="54"/>
+    <rect class="ragas" x="0" y="30" width="180.4" height="54"/>
+    <text class="white" x="92" y="64" text-anchor="middle">0.975</text>
+  </g>
+
+  <g transform="translate(315,745)">
+    <text class="tiny" x="0" y="19">Context Recall</text>
+    <rect class="card" x="0" y="30" width="185" height="54"/>
+    <rect class="ragas" x="0" y="30" width="185" height="54"/>
+    <text class="white" x="92" y="64" text-anchor="middle">1.000</text>
+  </g>
+
+  <g transform="translate(535,745)">
+    <text class="tiny" x="0" y="19">Faithfulness</text>
+    <rect class="card" x="0" y="30" width="185" height="54"/>
+    <rect class="ragas" x="0" y="30" width="185" height="54"/>
+    <text class="white" x="92" y="64" text-anchor="middle">1.000</text>
+  </g>
+
+  <g transform="translate(755,745)">
+    <text class="tiny" x="0" y="19">Answer Relevancy</text>
+    <rect class="card" x="0" y="30" width="185" height="54"/>
+    <rect class="ragas" x="0" y="30" width="184.1" height="54"/>
+    <text class="white" x="92" y="64" text-anchor="middle">0.995</text>
+  </g>
+
+  <g transform="translate(975,745)">
+    <text class="tiny" x="0" y="19">Answer Correctness</text>
+    <rect class="card" x="0" y="30" width="185" height="54"/>
+    <rect class="ragas" x="0" y="30" width="175.8" height="54"/>
+    <text class="white" x="92" y="64" text-anchor="middle">0.950</text>
+  </g>
+
+  <g transform="translate(1195,745)">
+    <text class="tiny" x="0" y="19">Overall</text>
+    <rect class="card" x="0" y="30" width="185" height="54"/>
+    <rect class="ragas" x="0" y="30" width="182" height="54"/>
+    <text class="white" x="92" y="64" text-anchor="middle">0.984</text>
+  </g>
+
+  <text class="tiny" x="750" y="910" text-anchor="middle">Takeaway: Current Query RAG is slightly stronger than the old baseline, retrieves expected courses reliably, and exposes hard cases for debugging.</text>
+</svg>

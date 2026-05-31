@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">
+  <title id="title">NCU Course Advisor Simple Architecture</title>
+  <desc id="desc">Simple architecture diagram showing chat input, profile extraction, retrieval, fusion, filtering, judging, response generation, evaluation, and benchmark outputs.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M 0 0 L 14 7 L 0 14 z" fill="#1f5f99"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.13"/>
+    </filter>
+    <style>
+      .bg { fill: #f3f6f8; }
+      .title { font: 800 34px Arial, sans-serif; fill: #10243e; }
+      .subtitle { font: 500 18px Arial, sans-serif; fill: #5f6f82; }
+      .section { fill: #ffffff; stroke: #d9e1ea; stroke-width: 2; rx: 14; filter: url(#shadow); }
+      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 12; }
+      .primary { fill: #e6f4f1; stroke: #087f7b; }
+      .blue { fill: #eff6ff; stroke: #1f5f99; }
+      .locked { fill: #fff7ed; stroke: #c2410c; }
+      .eval { fill: #f8fafc; stroke: #64748b; }
+      .label { font: 800 19px Arial, sans-serif; fill: #172033; }
+      .small { font: 500 15px Arial, sans-serif; fill: #5f6f82; }
+      .tiny { font: 700 13px Arial, sans-serif; fill: #334155; }
+      .arrow { stroke: #1f5f99; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .soft-arrow { stroke: #64748b; stroke-width: 2.5; fill: none; marker-end: url(#arrow); stroke-dasharray: 7 7; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1400" height="900"/>
+  <text class="title" x="70" y="70">NCU Course Advisor Architecture</text>
+  <text class="subtitle" x="70" y="102">Multi-agent RAG pipeline for profile-aware course recommendations</text>
+
+  <rect class="section" x="58" y="135" width="1284" height="650"/>
+
+  <rect class="box primary" x="95" y="205" width="220" height="92"/>
+  <text class="label" x="205" y="238" text-anchor="middle">Student Chat</text>
+  <text class="small" x="205" y="264" text-anchor="middle">question or profile</text>
+  <text class="small" x="205" y="286" text-anchor="middle">update message</text>
+
+  <rect class="box blue" x="375" y="188" width="240" height="126"/>
+  <text class="label" x="495" y="224" text-anchor="middle">IntakeAgent</text>
+  <text class="small" x="495" y="252" text-anchor="middle">extracts UserProfile</text>
+  <text class="small" x="495" y="276" text-anchor="middle">year, degree, completed</text>
+  <text class="small" x="495" y="300" text-anchor="middle">goals, language</text>
+
+  <rect class="box" x="690" y="188" width="250" height="126"/>
+  <text class="label" x="815" y="224" text-anchor="middle">Query RAG</text>
+  <text class="small" x="815" y="252" text-anchor="middle">BM25 + Vector</text>
+  <text class="small" x="815" y="276" text-anchor="middle">BM25 MQ/BF, KNN MQ/BF</text>
+  <text class="small" x="815" y="300" text-anchor="middle">Sparse MQ/BF</text>
+
+  <rect class="box" x="1010" y="188" width="235" height="126"/>
+  <text class="label" x="1128" y="224" text-anchor="middle">FusionAgent</text>
+  <text class="small" x="1128" y="252" text-anchor="middle">weighted rank fusion</text>
+  <text class="small" x="1128" y="276" text-anchor="middle">combines all retrieval</text>
+  <text class="small" x="1128" y="300" text-anchor="middle">signals</text>
+
+  <rect class="box locked" x="855" y="410" width="260" height="126"/>
+  <text class="label" x="985" y="446" text-anchor="middle">Profile Filtering</text>
+  <text class="small" x="985" y="474" text-anchor="middle">prerequisites</text>
+  <text class="small" x="985" y="498" text-anchor="middle">completed courses</text>
+  <text class="small" x="985" y="522" text-anchor="middle">degree and language</text>
+
+  <rect class="box blue" x="548" y="410" width="235" height="126"/>
+  <text class="label" x="666" y="446" text-anchor="middle">JudgeAgent</text>
+  <text class="small" x="666" y="474" text-anchor="middle">selects best eligible</text>
+  <text class="small" x="666" y="498" text-anchor="middle">course with reasoning</text>
+
+  <rect class="box primary" x="255" y="410" width="225" height="126"/>
+  <text class="label" x="368" y="446" text-anchor="middle">ResponseAgent</text>
+  <text class="small" x="368" y="474" text-anchor="middle">formats concise</text>
+  <text class="small" x="368" y="498" text-anchor="middle">student answer</text>
+
+  <rect class="box eval" x="95" y="610" width="270" height="110"/>
+  <text class="label" x="230" y="646" text-anchor="middle">Response Evaluation</text>
+  <text class="small" x="230" y="674" text-anchor="middle">second model checks</text>
+  <text class="small" x="230" y="698" text-anchor="middle">safety and consistency</text>
+
+  <rect class="box primary" x="445" y="610" width="260" height="110"/>
+  <text class="label" x="575" y="648" text-anchor="middle">Final Answer</text>
+  <text class="small" x="575" y="676" text-anchor="middle">recommendation or</text>
+  <text class="small" x="575" y="700" text-anchor="middle">locked-course pathway</text>
+
+  <rect class="box eval" x="790" y="610" width="455" height="110"/>
+  <text class="label" x="1018" y="646" text-anchor="middle">Benchmark Page</text>
+  <text class="small" x="1018" y="674" text-anchor="middle">old vs current, profile cases, special cases</text>
+  <text class="small" x="1018" y="698" text-anchor="middle">RAGAS-style evaluation and hard-case details</text>
+
+  <path class="arrow" d="M 315 251 L 365 251"/>
+  <path class="arrow" d="M 615 251 L 680 251"/>
+  <path class="arrow" d="M 940 251 L 1000 251"/>
+  <path class="arrow" d="M 1128 314 C 1128 365 1085 392 1036 407"/>
+  <path class="arrow" d="M 855 473 L 793 473"/>
+  <path class="arrow" d="M 548 473 L 490 473"/>
+  <path class="arrow" d="M 368 536 C 368 577 305 586 253 604"/>
+  <path class="arrow" d="M 365 665 L 435 665"/>
+  <path class="soft-arrow" d="M 1128 314 C 1240 412 1225 535 1120 604"/>
+  <path class="soft-arrow" d="M 985 536 C 995 570 1004 589 1014 604"/>
+
+  <rect class="box" x="78" y="810" width="1244" height="48"/>
+  <text class="tiny" x="700" y="840" text-anchor="middle">Key idea: retrieval finds relevant courses, profile filtering checks eligibility, and evaluation makes the result explainable.</text>
+</svg>

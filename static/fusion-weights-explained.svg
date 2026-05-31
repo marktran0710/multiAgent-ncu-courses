@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="950" viewBox="0 0 1500 950" role="img" aria-labelledby="title desc">
+  <title id="title">Weighted Reciprocal Rank Fusion Explained</title>
+  <desc id="desc">Diagram explaining how eight retrieval methods with different weights combine into the final Query RAG ranking.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M 0 0 L 14 7 L 0 14 z" fill="#1f5f99"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.14"/>
+    </filter>
+    <style>
+      .bg { fill: #f3f6f8; }
+      .title { font: 800 36px Arial, sans-serif; fill: #10243e; }
+      .subtitle { font: 500 18px Arial, sans-serif; fill: #5f6f82; }
+      .panel { fill: #ffffff; stroke: #d9e1ea; stroke-width: 2; rx: 16; filter: url(#shadow); }
+      .method { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 12; }
+      .strong { fill: #e6f4f1; stroke: #087f7b; }
+      .medium { fill: #eff6ff; stroke: #1f5f99; }
+      .base { fill: #f8fafc; stroke: #64748b; }
+      .baseline { fill: #fef3c7; stroke: #b45309; }
+      .final { fill: #10243e; stroke: #10243e; }
+      .weightbar { fill: #087f7b; rx: 5; }
+      .label { font: 800 19px Arial, sans-serif; fill: #172033; }
+      .small { font: 500 15px Arial, sans-serif; fill: #5f6f82; }
+      .tiny { font: 700 13px Arial, sans-serif; fill: #334155; }
+      .finalText { font: 800 22px Arial, sans-serif; fill: #ffffff; }
+      .finalSmall { font: 500 15px Arial, sans-serif; fill: #dbeafe; }
+      .arrow { stroke: #1f5f99; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .formula { font: 800 20px Arial, sans-serif; fill: #10243e; }
+      .rank { font: 800 15px Arial, sans-serif; fill: #087f7b; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1500" height="950"/>
+  <text class="title" x="70" y="70">How Query RAG Combines 8 Retrieval Methods</text>
+  <text class="subtitle" x="70" y="102">Weighted Reciprocal Rank Fusion: methods vote by rank, stronger methods have bigger weights</text>
+
+  <rect class="panel" x="55" y="135" width="930" height="725"/>
+  <rect class="panel" x="1030" y="135" width="410" height="725"/>
+
+  <text class="label" x="95" y="178">Retrieval signals</text>
+  <text class="small" x="95" y="205">Each method returns a ranked course list. Higher weight means a stronger vote.</text>
+
+  <g transform="translate(95,235)">
+    <rect class="method strong" x="0" y="0" width="830" height="62"/>
+    <text class="label" x="22" y="27">Sparse Encoder + Best Fields</text>
+    <text class="small" x="22" y="50">Strong sparse term match; best course field dominates. Example: exact title/description field wins.</text>
+    <rect class="weightbar" x="660" y="17" width="135" height="14"/>
+    <text class="rank" x="660" y="50">weight 1.35</text>
+  </g>
+
+  <g transform="translate(95,315)">
+    <rect class="method strong" x="0" y="0" width="830" height="62"/>
+    <text class="label" x="22" y="27">Sparse Encoder + Multi Match</text>
+    <text class="small" x="22" y="50">Sparse TF-IDF style semantic match across all fields. Good for technical keywords.</text>
+    <rect class="weightbar" x="660" y="17" width="125" height="14"/>
+    <text class="rank" x="660" y="50">weight 1.25</text>
+  </g>
+
+  <g transform="translate(95,395)">
+    <rect class="method medium" x="0" y="0" width="830" height="62"/>
+    <text class="label" x="22" y="27">KNN + Best Fields</text>
+    <text class="small" x="22" y="50">Dense semantic similarity plus strongest field evidence. Good for meaning + title precision.</text>
+    <rect class="weightbar" x="660" y="17" width="120" height="14"/>
+    <text class="rank" x="660" y="50">weight 1.20</text>
+  </g>
+
+  <g transform="translate(95,475)">
+    <rect class="method medium" x="0" y="0" width="830" height="62"/>
+    <text class="label" x="22" y="27">KNN + Multi Match</text>
+    <text class="small" x="22" y="50">Dense semantic similarity blended with broad field matching. Good for paraphrased queries.</text>
+    <rect class="weightbar" x="660" y="17" width="115" height="14"/>
+    <text class="rank" x="660" y="50">weight 1.15</text>
+  </g>
+
+  <g transform="translate(95,555)">
+    <rect class="method baseline" x="0" y="0" width="830" height="62"/>
+    <text class="label" x="22" y="27">VectorAgent</text>
+    <text class="small" x="22" y="50">Semantic course search. Example: “image recognition” can find Computer Vision.</text>
+    <rect class="weightbar" x="660" y="17" width="110" height="14"/>
+    <text class="rank" x="660" y="50">weight 1.10</text>
+  </g>
+
+  <g transform="translate(95,635)">
+    <rect class="method medium" x="0" y="0" width="830" height="62"/>
+    <text class="label" x="22" y="27">BM25 + Best Fields</text>
+    <text class="small" x="22" y="50">Keyword search where name/ID/description fields can dominate. Good for exact course names.</text>
+    <rect class="weightbar" x="660" y="17" width="110" height="14"/>
+    <text class="rank" x="660" y="50">weight 1.10</text>
+  </g>
+
+  <g transform="translate(95,715)">
+    <rect class="method baseline" x="0" y="0" width="400" height="62"/>
+    <text class="label" x="22" y="27">BM25Agent</text>
+    <text class="small" x="22" y="50">Base keyword search.</text>
+    <rect class="weightbar" x="292" y="17" width="80" height="14"/>
+    <text class="rank" x="292" y="50">1.00</text>
+
+    <rect class="method base" x="430" y="0" width="400" height="62"/>
+    <text class="label" x="452" y="27">BM25 + Multi Match</text>
+    <text class="small" x="452" y="50">Broad keyword search across fields.</text>
+    <rect class="weightbar" x="722" y="17" width="80" height="14"/>
+    <text class="rank" x="722" y="50">1.00</text>
+  </g>
+
+  <path class="arrow" d="M 930 265 C 1000 280 1035 330 1070 390"/>
+  <path class="arrow" d="M 930 345 C 1000 355 1035 390 1070 430"/>
+  <path class="arrow" d="M 930 425 C 1000 425 1035 440 1070 465"/>
+  <path class="arrow" d="M 930 505 C 1000 500 1035 495 1070 500"/>
+  <path class="arrow" d="M 930 585 C 1000 575 1035 555 1070 535"/>
+  <path class="arrow" d="M 930 665 C 1000 650 1035 610 1070 565"/>
+  <path class="arrow" d="M 925 746 C 1000 715 1035 650 1070 595"/>
+
+  <text class="label" x="1070" y="178">Fusion step</text>
+  <text class="small" x="1070" y="205">A course gets points from every method where it appears.</text>
+
+  <rect class="method" x="1070" y="250" width="320" height="120"/>
+  <text class="formula" x="1230" y="292" text-anchor="middle">score += weight / (60 + rank)</text>
+  <text class="small" x="1230" y="326" text-anchor="middle">Rank #1 gives more points than rank #5</text>
+  <text class="small" x="1230" y="350" text-anchor="middle">Higher method weight gives a louder vote</text>
+
+  <rect class="method" x="1070" y="415" width="320" height="150"/>
+  <text class="label" x="1230" y="452" text-anchor="middle">Example</text>
+  <text class="small" x="1230" y="485" text-anchor="middle">If EE3004 appears high in</text>
+  <text class="small" x="1230" y="510" text-anchor="middle">BM25 BF + Sparse BF + KNN BF,</text>
+  <text class="small" x="1230" y="535" text-anchor="middle">its fused score rises.</text>
+
+  <rect class="final" x="1070" y="620" width="320" height="120" rx="16"/>
+  <text class="finalText" x="1230" y="663" text-anchor="middle">Final Query RAG Ranking</text>
+  <text class="finalSmall" x="1230" y="695" text-anchor="middle">One combined course list</text>
+  <text class="finalSmall" x="1230" y="720" text-anchor="middle">sent to profile filtering</text>
+
+  <path class="arrow" d="M 1230 370 L 1230 405"/>
+  <path class="arrow" d="M 1230 565 L 1230 610"/>
+
+  <rect class="method" x="70" y="885" width="1360" height="42"/>
+  <text class="tiny" x="750" y="911" text-anchor="middle">Short definition: MQ = broad matching across many fields. BF = strongest field match dominates. Weighted RRF combines ranks, not raw score units.</text>
+</svg>
