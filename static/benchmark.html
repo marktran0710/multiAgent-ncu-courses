@@ -126,6 +126,10 @@
             color: var(--muted);
         }
 
+        .metric-row {
+            margin-top: 10px;
+        }
+
         .increase {
             color: var(--teal);
         }
@@ -177,9 +181,122 @@
             color: var(--rose);
         }
 
+        .detail-button {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 7px 10px;
+            background: #ffffff;
+            color: var(--blue);
+            font-weight: 850;
+            cursor: pointer;
+        }
+
+        .detail-button:hover {
+            border-color: var(--blue);
+            background: #eff6ff;
+        }
+
         .compact-list {
             margin: 0;
             padding-left: 16px;
+        }
+
+        .case-detail {
+            display: grid;
+            gap: 8px;
+            min-width: 260px;
+        }
+
+        .case-detail strong {
+            display: block;
+        }
+
+        .context-list {
+            display: grid;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .context-item {
+            border-left: 3px solid var(--line);
+            padding-left: 8px;
+        }
+
+        .context-item b {
+            display: block;
+            color: var(--ink);
+        }
+
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            background: rgba(15, 23, 42, 0.54);
+            z-index: 20;
+        }
+
+        .modal-backdrop.active {
+            display: flex;
+        }
+
+        .modal-panel {
+            width: min(920px, 100%);
+            max-height: min(82vh, 760px);
+            overflow: auto;
+            border-radius: 8px;
+            border: 1px solid var(--line);
+            background: #ffffff;
+            box-shadow: 0 24px 80px rgba(15, 23, 42, 0.22);
+        }
+
+        .modal-header {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--line);
+            background: #ffffff;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        .modal-body {
+            display: grid;
+            gap: 14px;
+            padding: 16px;
+        }
+
+        .modal-close {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 6px 9px;
+            background: #ffffff;
+            color: var(--ink);
+            font-weight: 850;
+            cursor: pointer;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .detail-box {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 10px;
+            background: #f8fafc;
         }
 
         @media (max-width: 780px) {
@@ -189,6 +306,10 @@
             }
 
             .metric-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .detail-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -226,6 +347,30 @@
                         </tr>
                     </thead>
                     <tbody id="comparisonRows"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>RAGAS Evaluation</h2>
+            <p class="muted" id="ragasSummary">Loading RAGAS-style evaluation...</p>
+            <div class="metric-grid metric-row" id="ragasMetricGrid"></div>
+            <div class="table-wrap metric-row">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Hard Case</th>
+                            <th>Expected</th>
+                            <th>Recommended</th>
+                            <th>Context Precision</th>
+                            <th>Context Recall</th>
+                            <th>Faithfulness</th>
+                            <th>Answer Relevancy</th>
+                            <th>Correctness</th>
+                            <th>Detail</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ragasRows"></tbody>
                 </table>
             </div>
         </section>
@@ -272,14 +417,36 @@
         </section>
     </main>
 
+    <div class="modal-backdrop" id="ragasDetailModal" role="dialog" aria-modal="true" aria-labelledby="ragasDetailTitle">
+        <div class="modal-panel">
+            <div class="modal-header">
+                <div>
+                    <h3 id="ragasDetailTitle">Case Detail</h3>
+                    <p class="muted" id="ragasDetailSubtitle"></p>
+                </div>
+                <button class="modal-close" id="ragasDetailClose" type="button">Close</button>
+            </div>
+            <div class="modal-body" id="ragasDetailBody"></div>
+        </div>
+    </div>
+
     <script>
         const metricGrid = document.getElementById('metricGrid');
         const comparisonRows = document.getElementById('comparisonRows');
         const caseRows = document.getElementById('caseRows');
         const profileRows = document.getElementById('profileRows');
         const profileSummary = document.getElementById('profileSummary');
+        const ragasRows = document.getElementById('ragasRows');
+        const ragasMetricGrid = document.getElementById('ragasMetricGrid');
+        const ragasSummary = document.getElementById('ragasSummary');
+        const ragasDetailModal = document.getElementById('ragasDetailModal');
+        const ragasDetailTitle = document.getElementById('ragasDetailTitle');
+        const ragasDetailSubtitle = document.getElementById('ragasDetailSubtitle');
+        const ragasDetailBody = document.getElementById('ragasDetailBody');
+        const ragasDetailClose = document.getElementById('ragasDetailClose');
         const specialSummary = document.getElementById('specialSummary');
         const summaryText = document.getElementById('summaryText');
+        let ragasHardCases = [];
 
         const metrics = [
             ['top1_accuracy', 'Top-1'],
@@ -329,6 +496,7 @@
                 ${renderComparisonRow('Current version', current)}
             `;
 
+            renderRagasEvaluation(data.ragas_evaluation || {});
             renderProfileBenchmark(data.profile_benchmark || {});
 
             const changedCases = comparison.special_cases || [];
@@ -352,6 +520,119 @@
                     <td colspan="7" class="muted">No rank changes in this benchmark run.</td>
                 </tr>
             `;
+        }
+
+        function renderRagasEvaluation(ragas) {
+            const summary = ragas.summary || {};
+            const hardCases = ragas.hard_cases || [];
+            ragasHardCases = hardCases;
+            ragasSummary.textContent = `${ragas.case_count || 0} cases evaluated with ${escapeHtml(ragas.backend || 'ragas-compatible-local')}. ${escapeHtml(ragas.note || '')}`;
+
+            const ragasMetrics = [
+                ['context_precision', 'Context Precision'],
+                ['context_recall', 'Context Recall'],
+                ['faithfulness', 'Faithfulness'],
+                ['answer_relevancy', 'Answer Relevancy'],
+                ['answer_correctness', 'Answer Correctness'],
+                ['overall', 'Overall']
+            ];
+            ragasMetricGrid.innerHTML = ragasMetrics.map(([key, label]) => `
+                <div class="metric">
+                    <span>${escapeHtml(label)}</span>
+                    <strong>${formatScore(summary[key])}</strong>
+                    <small>${escapeHtml((ragas.metrics || {})[key] || '')}</small>
+                </div>
+            `).join('');
+
+            ragasRows.innerHTML = hardCases.map((item, index) => {
+                const scores = item.scores || {};
+                const expectedCourses = item.expected_courses || [];
+                const recommendedCourse = item.recommended_course || {};
+                return `
+                    <tr>
+                        <td><strong>${escapeHtml(item.focus)}</strong><br><span class="muted">${escapeHtml(item.query)}</span></td>
+                        <td>${formatCourseList(expectedCourses, item.expected_ids)}</td>
+                        <td>${formatCourseName(recommendedCourse, item.recommended_id)}</td>
+                        <td>${formatScore(scores.context_precision)}</td>
+                        <td>${formatScore(scores.context_recall)}</td>
+                        <td>${formatScore(scores.faithfulness)}</td>
+                        <td>${formatScore(scores.answer_relevancy)}</td>
+                        <td>${formatScore(scores.answer_correctness)}</td>
+                        <td><button class="detail-button" type="button" data-ragas-detail="${index}">Detail</button></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        ragasRows.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-ragas-detail]');
+            if (!button) return;
+            openRagasDetail(Number(button.dataset.ragasDetail));
+        });
+
+        ragasDetailClose.addEventListener('click', closeRagasDetail);
+        ragasDetailModal.addEventListener('click', (event) => {
+            if (event.target === ragasDetailModal) closeRagasDetail();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && ragasDetailModal.classList.contains('active')) {
+                closeRagasDetail();
+            }
+        });
+
+        function openRagasDetail(index) {
+            const item = ragasHardCases[index];
+            if (!item) return;
+            const scores = item.scores || {};
+            const contexts = item.retrieved_contexts || [];
+            ragasDetailTitle.textContent = item.focus || 'Case Detail';
+            ragasDetailSubtitle.textContent = item.query || '';
+            ragasDetailBody.innerHTML = `
+                <div class="detail-grid">
+                    <div class="detail-box">
+                        <strong>Expected</strong>
+                        ${formatCourseList(item.expected_courses || [], item.expected_ids)}
+                    </div>
+                    <div class="detail-box">
+                        <strong>Recommended</strong>
+                        ${formatCourseName(item.recommended_course || {}, item.recommended_id)}
+                    </div>
+                </div>
+                <div class="detail-box">
+                    <strong>Why hard</strong>
+                    <span class="muted">${escapeHtml(item.why_hard || 'n/a')}</span>
+                </div>
+                <div class="detail-box">
+                    <strong>RAGAS-style scores</strong>
+                    <div class="context-list">
+                        <div>Context Precision: ${formatScore(scores.context_precision)}</div>
+                        <div>Context Recall: ${formatScore(scores.context_recall)}</div>
+                        <div>Faithfulness: ${formatScore(scores.faithfulness)}</div>
+                        <div>Answer Relevancy: ${formatScore(scores.answer_relevancy)}</div>
+                        <div>Answer Correctness: ${formatScore(scores.answer_correctness)}</div>
+                        <div>Overall: ${formatScore(scores.overall)}</div>
+                    </div>
+                </div>
+                <div class="detail-box">
+                    <strong>Top retrieved contexts</strong>
+                    <div class="context-list">
+                        ${contexts.map((course, courseIndex) => `
+                            <div class="context-item">
+                                <b>#${courseIndex + 1} ${escapeHtml(course.id)} ${escapeHtml(course.name)}</b>
+                                <span class="muted">${escapeHtml(course.language)} | ${escapeHtml(course.degree)} | prereq: ${escapeHtml((course.prerequisites || []).join(', ') || 'None')}</span><br>
+                                <span class="muted">${escapeHtml(course.description || '')}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            ragasDetailModal.classList.add('active');
+            ragasDetailClose.focus();
+        }
+
+        function closeRagasDetail() {
+            ragasDetailModal.classList.remove('active');
+            ragasDetailBody.innerHTML = '';
         }
 
         function renderProfileBenchmark(profileBenchmark) {
@@ -412,6 +693,24 @@
         function formatRelative(value) {
             if (typeof value !== 'number') return 'n/a';
             return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
+        }
+
+        function formatScore(value) {
+            return typeof value === 'number' ? value.toFixed(3) : 'n/a';
+        }
+
+        function formatCourseName(course, fallbackId) {
+            if (course && course.id) {
+                return `<strong>${escapeHtml(course.id)}</strong><br><span class="muted">${escapeHtml(course.name)}</span>`;
+            }
+            return escapeHtml(fallbackId || 'none');
+        }
+
+        function formatCourseList(courses, fallbackIds) {
+            if (courses && courses.length) {
+                return courses.map((course) => formatCourseName(course, course.id)).join('<br>');
+            }
+            return escapeHtml((fallbackIds || []).join(', ') || 'none');
         }
 
         function formatRank(rank) {

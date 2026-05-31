@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from agents.RagasEvaluationAgent import RagasEvaluationAgent
 from agents.QueryRAGAgent import QueryRAGAgent
 from function.main import tokenize
 from models.RetrievalResult import RetrievalResult
@@ -308,6 +309,7 @@ class RetrievalBenchmarkAgent:
             },
             "comparison": self._build_comparison(summary, case_rows),
             "profile_benchmark": self._run_profile_benchmark(top_k=top_k),
+            "ragas_evaluation": RagasEvaluationAgent(self.orchestrator.course_map).evaluate(case_rows),
             "summary": summary,
             "cases": case_rows,
         }

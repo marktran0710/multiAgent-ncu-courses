@@ -89,6 +89,14 @@ class TestPipelineEndToEnd:
         assert benchmark["comparison"]["special_case_counts"]["shown"] >= 10
         assert benchmark["profile_benchmark"]["case_count"] == 6
         assert benchmark["profile_benchmark"]["failed"] == 0
+        assert benchmark["ragas_evaluation"]["case_count"] == 100
+        assert "context_precision" in benchmark["ragas_evaluation"]["summary"]
+        assert "faithfulness" in benchmark["ragas_evaluation"]["summary"]
+        assert benchmark["ragas_evaluation"]["hard_cases"]
+        first_hard_case = benchmark["ragas_evaluation"]["hard_cases"][0]
+        assert first_hard_case["why_hard"]
+        assert first_hard_case["retrieved_contexts"]
+        assert "name" in first_hard_case["retrieved_contexts"][0]
 
     @patch("function.main.call_groq_with_tools")
     def test_beginner_gets_no_prereq_course(self, mock_groq):
