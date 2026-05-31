@@ -59,6 +59,30 @@ class TestIntakeAgentFallback:
         assert updated is existing
         assert updated.completed_courses == ["CSIE1001", "CSIE2001"]
 
+    def test_profile_only_message_updates_year_and_empty_completed_courses(self, monkeypatch):
+        agent = IntakeAgent()
+        existing = UserProfile(
+            raw_input="I want data mining",
+            academic_year=3,
+            degree_level="undergrad",
+            completed_courses=[],
+            goals=[],
+            constraints=[],
+            search_query="data mining",
+        )
+        monkeypatch.setattr(agent, "_call_llm", lambda messages: (_ for _ in ()).throw(RuntimeError("offline")))
+
+        updated = agent.process(
+            "I am a first-year undergraduate student and not completed any courses. Could you help me to update my Profile",
+            existing_profile=existing,
+        )
+
+        assert updated is existing
+        assert updated.academic_year == 1
+        assert updated.degree_level == "undergrad"
+        assert updated.completed_courses == []
+        assert "not completed" in updated.search_query.lower()
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Fixtures

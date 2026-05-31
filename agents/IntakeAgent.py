@@ -136,6 +136,8 @@ class IntakeAgent:
             year = 7
         elif re.search(r"\b(master|masters|msc|grad(uate)? student|thesis)\b", text):
             year = 5
+        elif re.search(r"\b(first[- ]?year|1st[- ]?year|freshman|undergraduate|undergrad)\b", text):
+            year = 1
         else:
             year = 1
 
@@ -203,6 +205,24 @@ class IntakeAgent:
     @staticmethod
     def _is_on_topic(text: str) -> bool:
         words = set(re.findall(r"[a-z0-9]+", text.lower()))
+        profile_keywords = {
+            "academic",
+            "completed",
+            "courses",
+            "freshman",
+            "first",
+            "first-year",
+            "firstyear",
+            "profile",
+            "student",
+            "undergrad",
+            "undergraduate",
+            "update",
+            "year",
+        }
+        if words & profile_keywords:
+            return True
+
         generic_question_words = {
             "what", "which", "how", "when", "where", "why", "can", "should",
             "help", "assist", "information", "info", "details", "about",
@@ -335,6 +355,7 @@ class IntakeAgent:
             fallback_profile = self._heuristic_fallback(raw_input)
             if existing_profile:
                 existing_profile.update(raw_input, {
+                    "academic_year": fallback_profile.academic_year,
                     "completed_courses": fallback_profile.completed_courses,
                     "goals": fallback_profile.goals,
                     "constraints": fallback_profile.constraints,

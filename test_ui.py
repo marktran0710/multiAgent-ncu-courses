@@ -169,6 +169,11 @@ class TestInternationalAdvisorUI(unittest.TestCase):
         self.assertIn("Same-rank cases with identical top results", visible_text)
         self.assertIn("formatChange", html)
         self.assertIn("top 3 changed", html)
+        self.assertIn("@media (max-width: 780px)", html)
+        self.assertIn("td::before", html)
+        self.assertIn("data-label=\"Hard Case\"", html)
+        self.assertIn("data-label=\"Profile Signal\"", html)
+        self.assertIn("max-height: calc(100vh - 16px)", html)
 
     def test_no_old_generic_branding_remains(self):
         self.assertNotIn("<h1>Course Finder</h1>", self.html)

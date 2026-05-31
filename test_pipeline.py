@@ -98,6 +98,38 @@ class TestPipelineEndToEnd:
         assert first_hard_case["retrieved_contexts"]
         assert "name" in first_hard_case["retrieved_contexts"][0]
 
+    def test_requested_locked_course_is_explained_not_replaced_by_prereq(self):
+        orchestrator = CourseFinderOrchestrator()
+        profile = UserProfile(
+            raw_input="I would like to learn Communication Systems",
+            academic_year=1,
+            degree_level="undergrad",
+            completed_courses=[],
+            goals=["learn Communication Systems"],
+            constraints=[],
+            search_query="Communication Systems",
+        )
+        orchestrator.intake_agent.process = MagicMock(return_value=profile)
+        orchestrator.judge_agent.process = MagicMock()
+        orchestrator.evaluation_agent.process = MagicMock(
+            side_effect=lambda draft_response, **_: (
+                draft_response,
+                {"status": "skipped", "approved": True},
+            )
+        )
+
+        response, _, details = orchestrator.run_user("I would like to learn Communication Systems")
+
+        assert "[EE3004] Communication Systems" in response
+        assert "not eligible" in response
+        assert "EE2002" in response
+        assert "MATH2002" in response
+        assert "Probability and Statistics because" not in response
+        assert details["requested_locked_course"] == "EE3004"
+        assert details["verdict"]["best_course_id"] is None
+        assert details["locked"][0]["id"] == "EE3004"
+        orchestrator.judge_agent.process.assert_not_called()
+
     @patch("function.main.call_groq_with_tools")
     def test_beginner_gets_no_prereq_course(self, mock_groq):
         """Freshman with no completed courses should only get courses with no prereqs."""

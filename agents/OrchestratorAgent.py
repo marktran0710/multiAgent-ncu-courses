@@ -108,6 +108,33 @@ class CourseFinderOrchestrator:
             for rank, r in enumerate(results, start=1)
         ]
 
+    @staticmethod
+    def _matches_requested_course(
+        raw_input: str,
+        profile: UserProfile,
+        course: Course,
+    ) -> bool:
+        query_text = " ".join([
+            raw_input,
+            profile.search_query,
+            " ".join(profile.goals),
+        ]).lower()
+        return course.id.lower() in query_text or course.name.lower() in query_text
+
+    def _requested_locked_course(
+        self,
+        raw_input: str,
+        profile: UserProfile,
+        locked: list[RetrievalResult],
+    ) -> RetrievalResult | None:
+        return next(
+            (
+                result for result in locked
+                if self._matches_requested_course(raw_input, profile, result.course)
+            ),
+            None,
+        )
+
     def _run_pipeline(
         self,
         raw_input: str,
@@ -134,11 +161,17 @@ class CourseFinderOrchestrator:
             query_fused = self.query_rag_agent.fuse(retrieval_rankings)
             query_fused = self._append_prerequisite_path(query_fused)
             eligible, locked = self.fusion_agent.filter_results(query_fused, profile)
+            requested_locked = self._requested_locked_course(raw_input, profile, locked)
+            if requested_locked:
+                locked = [requested_locked] + [
+                    result for result in locked
+                    if result.course.id != requested_locked.course.id
+                ]
 
             # 4. The Judge's Decision
             # CRITICAL: We only pass 'eligible' courses to the judge.
             # This prevents recommending MATH2002 if the student already passed it.
-            if not eligible:
+            if requested_locked or not eligible:
                 verdict = None 
             else:
                 verdict = self.judge_agent.process(profile, eligible)
@@ -204,6 +237,7 @@ class CourseFinderOrchestrator:
                     "final fusion uses weighted Reciprocal Rank Fusion over ranks."
                 ),
                 "query_rag": self._serialize_rankings(query_fused),
+                "requested_locked_course": requested_locked.course.id if requested_locked else None,
                 "retrieval_methods": {
                     name: self._serialize_rankings(results)
                     for name, results in retrieval_rankings.items()

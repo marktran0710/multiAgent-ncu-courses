@@ -28,6 +28,7 @@
             min-height: 100vh;
             background: var(--bg);
             color: var(--ink);
+            overflow-x: hidden;
         }
 
         .topbar {
@@ -142,6 +143,7 @@
             overflow-x: auto;
             border: 1px solid var(--line);
             border-radius: 8px;
+            -webkit-overflow-scrolling: touch;
         }
 
         table {
@@ -303,6 +305,21 @@
             .topbar {
                 align-items: flex-start;
                 flex-direction: column;
+                padding: 14px 16px;
+            }
+
+            .topbar h1 {
+                font-size: 1rem;
+                line-height: 1.25;
+            }
+
+            .topbar p {
+                font-size: 0.84rem;
+            }
+
+            .ghost-button {
+                width: 100%;
+                min-height: 42px;
             }
 
             .metric-grid {
@@ -311,6 +328,108 @@
 
             .detail-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .page {
+                padding: 10px;
+                gap: 10px;
+            }
+
+            .card {
+                padding: 12px;
+            }
+
+            .card h2 {
+                font-size: 1rem;
+            }
+
+            .metric {
+                padding: 10px;
+            }
+
+            .metric strong {
+                font-size: 1.18rem;
+            }
+
+            .table-wrap {
+                border: 0;
+                border-radius: 0;
+                overflow-x: visible;
+            }
+
+            table {
+                min-width: 0;
+                display: block;
+                background: transparent;
+            }
+
+            thead {
+                display: none;
+            }
+
+            tbody,
+            tr,
+            td {
+                display: block;
+                width: 100%;
+            }
+
+            tr {
+                margin-bottom: 10px;
+                border: 1px solid var(--line);
+                border-radius: 8px;
+                background: #ffffff;
+                overflow: hidden;
+            }
+
+            td {
+                display: grid;
+                grid-template-columns: minmax(98px, 34%) minmax(0, 1fr);
+                gap: 10px;
+                padding: 9px 10px;
+                border-bottom: 1px solid var(--line);
+                overflow-wrap: anywhere;
+            }
+
+            td::before {
+                content: attr(data-label);
+                color: #334155;
+                font-size: 0.72rem;
+                font-weight: 850;
+                text-transform: uppercase;
+            }
+
+            td:last-child {
+                border-bottom: 0;
+            }
+
+            .detail-button {
+                min-height: 40px;
+                width: 100%;
+            }
+
+            .modal-backdrop {
+                align-items: stretch;
+                padding: 8px;
+            }
+
+            .modal-panel {
+                width: 100%;
+                max-height: calc(100vh - 16px);
+            }
+
+            .modal-header {
+                padding: 12px;
+            }
+
+            .modal-body {
+                padding: 12px;
+            }
+        }
+
+        @media (min-width: 781px) and (max-width: 1040px) {
+            .metric-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
     </style>
@@ -506,18 +625,18 @@
                 const comp = item.comparison || {};
                 return `
                     <tr>
-                        <td><strong>${escapeHtml(item.focus)}</strong><br><span class="muted">${escapeHtml(item.query)}</span></td>
-                        <td>${escapeHtml((item.expected_ids || []).join(', '))}</td>
-                        <td>${formatRank(comp.legacy_rank)}<br><span class="muted">${escapeHtml(comp.legacy_label || '')}</span></td>
-                        <td>${formatRank(comp.current_rank)}<br><span class="muted">${escapeHtml(comp.current_label || '')}</span></td>
-                        <td><span class="pill">${escapeHtml(formatChange(comp))}</span></td>
-                        <td>${escapeHtml((comp.legacy_top_courses || []).slice(0, 3).join(', '))}</td>
-                        <td>${escapeHtml((comp.current_top_courses || []).slice(0, 3).join(', '))}</td>
+                        <td data-label="Case"><strong>${escapeHtml(item.focus)}</strong><br><span class="muted">${escapeHtml(item.query)}</span></td>
+                        <td data-label="Expected">${escapeHtml((item.expected_ids || []).join(', '))}</td>
+                        <td data-label="Old Rank">${formatRank(comp.legacy_rank)}<br><span class="muted">${escapeHtml(comp.legacy_label || '')}</span></td>
+                        <td data-label="Current Rank">${formatRank(comp.current_rank)}<br><span class="muted">${escapeHtml(comp.current_label || '')}</span></td>
+                        <td data-label="Change"><span class="pill">${escapeHtml(formatChange(comp))}</span></td>
+                        <td data-label="Old Top 3">${escapeHtml((comp.legacy_top_courses || []).slice(0, 3).join(', '))}</td>
+                        <td data-label="Current Top 3">${escapeHtml((comp.current_top_courses || []).slice(0, 3).join(', '))}</td>
                     </tr>
                 `;
             }).join('') : `
                 <tr>
-                    <td colspan="7" class="muted">No rank changes in this benchmark run.</td>
+                    <td data-label="Status" colspan="7" class="muted">No rank changes in this benchmark run.</td>
                 </tr>
             `;
         }
@@ -550,15 +669,15 @@
                 const recommendedCourse = item.recommended_course || {};
                 return `
                     <tr>
-                        <td><strong>${escapeHtml(item.focus)}</strong><br><span class="muted">${escapeHtml(item.query)}</span></td>
-                        <td>${formatCourseList(expectedCourses, item.expected_ids)}</td>
-                        <td>${formatCourseName(recommendedCourse, item.recommended_id)}</td>
-                        <td>${formatScore(scores.context_precision)}</td>
-                        <td>${formatScore(scores.context_recall)}</td>
-                        <td>${formatScore(scores.faithfulness)}</td>
-                        <td>${formatScore(scores.answer_relevancy)}</td>
-                        <td>${formatScore(scores.answer_correctness)}</td>
-                        <td><button class="detail-button" type="button" data-ragas-detail="${index}">Detail</button></td>
+                        <td data-label="Hard Case"><strong>${escapeHtml(item.focus)}</strong><br><span class="muted">${escapeHtml(item.query)}</span></td>
+                        <td data-label="Expected">${formatCourseList(expectedCourses, item.expected_ids)}</td>
+                        <td data-label="Recommended">${formatCourseName(recommendedCourse, item.recommended_id)}</td>
+                        <td data-label="Context Precision">${formatScore(scores.context_precision)}</td>
+                        <td data-label="Context Recall">${formatScore(scores.context_recall)}</td>
+                        <td data-label="Faithfulness">${formatScore(scores.faithfulness)}</td>
+                        <td data-label="Answer Relevancy">${formatScore(scores.answer_relevancy)}</td>
+                        <td data-label="Correctness">${formatScore(scores.answer_correctness)}</td>
+                        <td data-label="Detail"><button class="detail-button" type="button" data-ragas-detail="${index}">Detail</button></td>
                     </tr>
                 `;
             }).join('');
@@ -655,18 +774,18 @@
                 ].join(' | ');
                 return `
                     <tr>
-                        <td><strong>${escapeHtml(item.focus)}</strong><br><span class="muted">${escapeHtml(item.query)}</span></td>
-                        <td>${escapeHtml(profileSignal)}</td>
-                        <td>
+                        <td data-label="Case"><strong>${escapeHtml(item.focus)}</strong><br><span class="muted">${escapeHtml(item.query)}</span></td>
+                        <td data-label="Profile Signal">${escapeHtml(profileSignal)}</td>
+                        <td data-label="Expected">
                             <strong>Eligible:</strong> ${escapeHtml((item.expected_eligible || []).join(', ') || 'none')}<br>
                             <strong>Locked:</strong> ${escapeHtml((item.expected_locked || []).join(', ') || 'none')}
                         </td>
-                        <td>${escapeHtml((item.top_eligible || []).join(', ') || 'none')}</td>
-                        <td>
+                        <td data-label="Top Eligible">${escapeHtml((item.top_eligible || []).join(', ') || 'none')}</td>
+                        <td data-label="Top Locked">
                             ${escapeHtml((item.top_locked || []).join(', ') || 'none')}
                             ${lockedReasons ? `<ul class="compact-list">${lockedReasons}</ul>` : ''}
                         </td>
-                        <td><span class="pill ${item.passed ? '' : 'fail'}">${item.passed ? 'passed' : 'failed'}</span></td>
+                        <td data-label="Status"><span class="pill ${item.passed ? '' : 'fail'}">${item.passed ? 'passed' : 'failed'}</span></td>
                     </tr>
                 `;
             }).join('');
@@ -675,12 +794,12 @@
         function renderComparisonRow(version, row) {
             return `
                 <tr>
-                    <td>${escapeHtml(version)}</td>
-                    <td><strong>${escapeHtml(row.label || 'n/a')}</strong></td>
-                    <td>${formatMetric(row.top1_accuracy)}</td>
-                    <td>${formatMetric(row.recall_at_3)}</td>
-                    <td>${formatMetric(row.recall_at_5)}</td>
-                    <td>${escapeHtml(row.mrr ?? 'n/a')}</td>
+                    <td data-label="Version">${escapeHtml(version)}</td>
+                    <td data-label="Method"><strong>${escapeHtml(row.label || 'n/a')}</strong></td>
+                    <td data-label="Top-1">${formatMetric(row.top1_accuracy)}</td>
+                    <td data-label="Recall@3">${formatMetric(row.recall_at_3)}</td>
+                    <td data-label="Recall@5">${formatMetric(row.recall_at_5)}</td>
+                    <td data-label="MRR">${escapeHtml(row.mrr ?? 'n/a')}</td>
                 </tr>
             `;
         }
