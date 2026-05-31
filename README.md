@@ -288,4 +288,4 @@ multiAgent-ncu-courses/
 ---
 
 ## 📄 License & Academic Integrity
-This project is developed as part of the **NCU CSIE Midterm Project**. All rights reserved. Content and architectures are designed for educational and department-specific deployment.
+This project is developed as part of the **NCU CSIE Course Project**. All rights reserved. Content and architectures are designed for educational and department-specific deployment.
