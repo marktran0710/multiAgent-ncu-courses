@@ -135,7 +135,7 @@ def _is_similar_goal(self, new_goal: str, existing_goals: list[str], threshold: 
 def call_gemini_with_tools(
     messages: list[dict],
     tools: list[dict],
-    model: str = "gemini-2.0-flash",
+    model: str = "gemini-2.5-flash",
 ) -> dict:
     """
     Call Gemini with function calling tools using the new google-genai SDK.

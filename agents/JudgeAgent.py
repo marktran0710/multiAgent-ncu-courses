@@ -32,10 +32,12 @@ JUDGE_TOOL = {
                 "reasoning": {
                     "type": "string",
                     "description": (
-                        "A 2–4 sentence explanation of why this course is the best fit, "
+                        "A 3–5 sentence explanation of why this course is the best fit, "
                         "written directly to the student using 'you' and 'your' — "
                         "never refer to them as 'the student'. "
-                        "Reference their goals, year, and completed courses."
+                        "You must reference their goals, year, completed courses, and "
+                        "explicitly compare it to other eligible options or the runner-up "
+                        "to explain why this course is chosen OVER the others."
                     ),
                 },
                 "confidence": {
@@ -62,6 +64,8 @@ Pick the SINGLE best course by:
   4. Appropriateness for academic year
 
 Treat schedule constraints as a HARD filter, not a soft preference.
+
+COMPARATIVE REASONING RULE: In your reasoning, you must explicitly address why this recommended course is selected OVER other potential options (such as the runner-up or other eligible courses). Explain why this specific course is the optimal next step compared to the alternatives.
 
 TONE RULE: The student wrote in first person ("I"). Address them directly as "you" in
 your reasoning — never say "the student". For example: "This course suits you because
