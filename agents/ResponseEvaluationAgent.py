@@ -121,6 +121,29 @@ class ResponseEvaluationAgent:
             "revised_response": parsed.get("revised_response") or "",
         }
 
+    @staticmethod
+    def _requested_locked_id(draft_response: str, locked: list[dict]) -> str | None:
+        match = re.search(r"closest match is\s+\[([A-Z0-9]+)\]", draft_response, flags=re.IGNORECASE)
+        if not match:
+            return None
+        requested_id = match.group(1).upper()
+        locked_ids = {str(course.get("id", "")).upper() for course in locked}
+        return requested_id if requested_id in locked_ids else None
+
+    def _protect_requested_locked_response(
+        self,
+        draft_response: str,
+        final_response: str,
+        locked: list[dict],
+    ) -> tuple[str, str | None]:
+        requested_id = self._requested_locked_id(draft_response, locked)
+        if not requested_id or requested_id.lower() in final_response.lower():
+            return final_response, None
+        return (
+            draft_response,
+            f"AI evaluator revision omitted requested locked course {requested_id}; kept deterministic response.",
+        )
+
     def process(
         self,
         draft_response: str,
@@ -155,13 +178,21 @@ class ResponseEvaluationAgent:
             approved = bool(result.get("approved"))
             revised = str(result.get("revised_response") or "").strip()
             final_response = draft_response if approved or not revised else revised
+            final_response, guard_issue = self._protect_requested_locked_response(
+                draft_response,
+                final_response,
+                locked,
+            )
+            issues = result.get("issues") or []
+            if guard_issue:
+                issues = [*issues, guard_issue]
             return final_response, {
                 "provider": provider,
                 "model": model,
                 "status": "completed",
                 "approved": approved,
                 "score": result.get("score"),
-                "issues": result.get("issues") or [],
+                "issues": issues,
                 "attempted": skipped + [f"{provider}:{model} completed"],
             }
 

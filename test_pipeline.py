@@ -130,6 +130,38 @@ class TestPipelineEndToEnd:
         assert details["locked"][0]["id"] == "EE3004"
         orchestrator.judge_agent.process.assert_not_called()
 
+    def test_requested_machine_learning_locked_course_is_explained(self):
+        orchestrator = CourseFinderOrchestrator()
+        profile = UserProfile(
+            raw_input="I want to study machine learning",
+            academic_year=1,
+            degree_level="undergrad",
+            completed_courses=[],
+            goals=["study machine learning"],
+            constraints=[],
+            search_query="machine learning",
+        )
+        orchestrator.intake_agent.process = MagicMock(return_value=profile)
+        orchestrator.judge_agent.process = MagicMock()
+        orchestrator.evaluation_agent.process = MagicMock(
+            side_effect=lambda draft_response, **_: (
+                draft_response,
+                {"status": "skipped", "approved": True},
+            )
+        )
+
+        response, _, details = orchestrator.run_user("I want to study machine learning")
+
+        assert "[CSIE4001] Machine Learning" in response
+        assert "not eligible" in response
+        assert "CSIE3001" in response
+        assert "MATH2001" in response
+        assert "No undergraduate machine learning courses" not in response
+        assert details["requested_locked_course"] == "CSIE4001"
+        assert details["verdict"]["best_course_id"] is None
+        assert details["locked"][0]["id"] == "CSIE4001"
+        orchestrator.judge_agent.process.assert_not_called()
+
     @patch("function.main.call_groq_with_tools")
     def test_beginner_gets_no_prereq_course(self, mock_groq):
         """Freshman with no completed courses should only get courses with no prereqs."""

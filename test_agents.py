@@ -810,6 +810,33 @@ class TestResponseEvaluationAgent:
         assert metadata["score"] == 2
         assert metadata["provider"] == "gemini"
 
+    def test_keeps_requested_locked_course_when_evaluator_omits_it(self, monkeypatch, fresh_profile):
+        monkeypatch.setenv("GEMINI_API_KEY", "configured-test-key")
+        agent = ResponseEvaluationAgent(primary_provider="groq")
+        evaluator = MagicMock(return_value={
+            "approved": False,
+            "score": 3,
+            "issues": ["Response could be shorter."],
+            "revised_response": "No undergraduate machine learning courses are recommended for you currently.",
+        })
+        monkeypatch.setattr(agent, "_call_llm", evaluator)
+
+        draft = (
+            "The closest match is [CSIE4001] Machine Learning, but it is not eligible "
+            "for your current profile yet.\nComplete first: CSIE3001, MATH2001."
+        )
+        response, metadata = agent.process(
+            draft_response=draft,
+            profile=fresh_profile,
+            eligible=[],
+            locked=[{"id": "CSIE4001", "missing_prereqs": ["CSIE3001", "MATH2001"]}],
+            verdict={"best_course_id": None},
+        )
+
+        assert response == draft
+        assert "CSIE4001" in response
+        assert any("omitted requested locked course CSIE4001" in issue for issue in metadata["issues"])
+
     def test_falls_back_to_alternate_groq_model_when_gemini_fails(self, monkeypatch, fresh_profile):
         monkeypatch.setenv("GEMINI_API_KEY", "configured-test-key")
         monkeypatch.setenv("GROQ_API_KEY", "configured-test-key")
