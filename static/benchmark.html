@@ -566,6 +566,7 @@
         const specialSummary = document.getElementById('specialSummary');
         const summaryText = document.getElementById('summaryText');
         let ragasHardCases = [];
+        window.__BENCHMARK_DATA__ = null;
 
         const metrics = [
             ['top1_accuracy', 'Top-1'],
@@ -577,6 +578,10 @@
         loadBenchmark();
 
         async function loadBenchmark() {
+            if (window.__BENCHMARK_DATA__) {
+                renderBenchmark(window.__BENCHMARK_DATA__);
+                return;
+            }
             try {
                 const response = await fetch('/benchmark/data');
                 if (!response.ok) throw new Error('Benchmark data unavailable');

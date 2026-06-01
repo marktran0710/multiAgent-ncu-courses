@@ -32,6 +32,7 @@ SCORE_EXPLANATION = (
     "standard_score is normalized to 0-10 within each method for display; "
     "final fusion uses weighted Reciprocal Rank Fusion over ranks."
 )
+BENCHMARK_DATA_PLACEHOLDER = "window.__BENCHMARK_DATA__ = null;"
 
 class ChatRequest(BaseModel):
     message: str
@@ -56,6 +57,19 @@ def remember_chat_turn(session_id: str, user_message: str, bot_response: str) ->
     ])
     if len(history) > 40:
         del history[:-40]
+
+def public_benchmark_data() -> dict:
+    return RetrievalBenchmarkAgent(orchestrator).run()
+
+def render_benchmark_page() -> str:
+    with open("static/benchmark.html", "r", encoding="utf-8") as f:
+        html = f.read()
+    data_json = json.dumps(public_benchmark_data()).replace("<", "\\u003c")
+    return html.replace(
+        BENCHMARK_DATA_PLACEHOLDER,
+        f"window.__BENCHMARK_DATA__ = {data_json};",
+        1,
+    )
 
 def is_admin_request(req: Request) -> bool:
     token = req.cookies.get("admin_session")
@@ -184,12 +198,11 @@ async def healthz():
 
 @app.get("/benchmark", response_class=HTMLResponse)
 async def get_benchmark_page():
-    with open("static/benchmark.html", "r", encoding="utf-8") as f:
-        return f.read()
+    return render_benchmark_page()
 
 @app.get("/benchmark/data")
 async def get_public_benchmark_data():
-    return RetrievalBenchmarkAgent(orchestrator).run()
+    return public_benchmark_data()
 
 @app.get("/admin", response_class=HTMLResponse)
 async def get_admin_interface():

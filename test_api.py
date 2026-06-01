@@ -442,6 +442,8 @@ class TestApiRoutesAndAdminLogic:
 
         assert page.status_code == 200
         assert "Old FusionAgent vs Current Query RAG" in page.text
+        assert "window.__BENCHMARK_DATA__ = null;" not in page.text
+        assert '"case_count": 1' in page.text
         assert data.status_code == 200
         assert data.json()["comparison"]["percentage_point_change"]["recall_at_3"] == 0.0
 
