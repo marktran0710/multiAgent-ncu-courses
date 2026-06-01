@@ -76,12 +76,14 @@ def isolated_api_state(monkeypatch):
     api_module.last_recommendations.clear()
     api_module.conversation_logs.clear()
     api_module.admin_sessions.clear()
+    api_module.clear_benchmark_cache()
     yield fake
     api_module.user_sessions.clear()
     api_module.chat_histories.clear()
     api_module.last_recommendations.clear()
     api_module.conversation_logs.clear()
     api_module.admin_sessions.clear()
+    api_module.clear_benchmark_cache()
 
 
 class TestChatLogic:
@@ -251,10 +253,13 @@ class FakeCourseFinderOrchestrator:
 
 
 class FakeRetrievalBenchmarkAgent:
+    run_count = 0
+
     def __init__(self, orchestrator):
         self.orchestrator = orchestrator
 
     def run(self):
+        type(self).run_count += 1
         return {
             "case_count": 1,
             "top_k": 10,
@@ -423,6 +428,8 @@ class TestApiRoutesAndAdminLogic:
     def test_admin_benchmark_requires_admin_and_returns_metrics(self, monkeypatch):
         client = TestClient(app)
         monkeypatch.setattr(api_module, "RetrievalBenchmarkAgent", FakeRetrievalBenchmarkAgent)
+        api_module.clear_benchmark_cache()
+        FakeRetrievalBenchmarkAgent.run_count = 0
 
         denied = client.get("/admin/benchmark")
         allowed = client.get("/admin/benchmark", cookies=admin_cookie())
@@ -432,20 +439,30 @@ class TestApiRoutesAndAdminLogic:
         assert allowed.json()["summary"][0]["recall_at_3"] == 1.0
         assert allowed.json()["comparison"]["legacy_best"]["label"] == "Past BM25 + Vector FusionAgent"
         assert allowed.json()["comparison"]["current"]["label"] == "Final weighted RRF fusion"
+        assert FakeRetrievalBenchmarkAgent.run_count == 1
 
     def test_public_benchmark_page_and_data_render(self, monkeypatch):
         client = TestClient(app)
         monkeypatch.setattr(api_module, "RetrievalBenchmarkAgent", FakeRetrievalBenchmarkAgent)
+        api_module.clear_benchmark_cache()
+        FakeRetrievalBenchmarkAgent.run_count = 0
 
         page = client.get("/benchmark")
         data = client.get("/benchmark/data")
+        cached_data = client.get("/benchmark/data")
+        cached_page = client.get("/benchmark")
 
         assert page.status_code == 200
         assert "Old FusionAgent vs Current Query RAG" in page.text
-        assert "window.__BENCHMARK_DATA__ = null;" not in page.text
-        assert '"case_count": 1' in page.text
+        assert "window.__BENCHMARK_DATA__ = null;" in page.text
         assert data.status_code == 200
         assert data.json()["comparison"]["percentage_point_change"]["recall_at_3"] == 0.0
+        assert cached_data.status_code == 200
+        assert cached_data.json()["case_count"] == 1
+        assert cached_page.status_code == 200
+        assert "window.__BENCHMARK_DATA__ = null;" not in cached_page.text
+        assert '"case_count": 1' in cached_page.text
+        assert FakeRetrievalBenchmarkAgent.run_count == 1
 
     def test_admin_courses_require_admin_and_return_courses(self, monkeypatch):
         client = TestClient(app)

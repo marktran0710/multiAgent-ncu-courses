@@ -23,6 +23,7 @@ chat_histories: Dict[str, list[dict[str, str]]] = {}
 last_recommendations: Dict[str, str] = {}
 conversation_logs: list = []
 admin_sessions: set[str] = set()
+benchmark_cache: dict[str, Any] = {"data": None}
 
 # Admin password (override this before publishing beyond a demo tunnel)
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
@@ -58,18 +59,21 @@ def remember_chat_turn(session_id: str, user_message: str, bot_response: str) ->
     if len(history) > 40:
         del history[:-40]
 
-def public_benchmark_data() -> dict:
-    return RetrievalBenchmarkAgent(orchestrator).run()
+def clear_benchmark_cache() -> None:
+    benchmark_cache["data"] = None
+
+def benchmark_data(force_refresh: bool = False) -> dict:
+    if force_refresh or benchmark_cache["data"] is None:
+        benchmark_cache["data"] = RetrievalBenchmarkAgent(orchestrator).run()
+    return benchmark_cache["data"]
 
 def render_benchmark_page() -> str:
     with open("static/benchmark.html", "r", encoding="utf-8") as f:
         html = f.read()
-    data_json = json.dumps(public_benchmark_data()).replace("<", "\\u003c")
-    return html.replace(
-        BENCHMARK_DATA_PLACEHOLDER,
-        f"window.__BENCHMARK_DATA__ = {data_json};",
-        1,
-    )
+    if benchmark_cache["data"] is None:
+        return html
+    data_json = json.dumps(benchmark_cache["data"]).replace("<", "\\u003c")
+    return html.replace(BENCHMARK_DATA_PLACEHOLDER, f"window.__BENCHMARK_DATA__ = {data_json};", 1)
 
 def is_admin_request(req: Request) -> bool:
     token = req.cookies.get("admin_session")
@@ -201,8 +205,9 @@ async def get_benchmark_page():
     return render_benchmark_page()
 
 @app.get("/benchmark/data")
-async def get_public_benchmark_data():
-    return public_benchmark_data()
+async def get_public_benchmark_data(req: Request):
+    refresh = req.query_params.get("refresh", "").lower() in {"1", "true", "yes"}
+    return benchmark_data(force_refresh=refresh)
 
 @app.get("/admin", response_class=HTMLResponse)
 async def get_admin_interface():
@@ -380,6 +385,7 @@ async def add_course(request: AddCourseRequest, req: Request):
     # Reinitialize orchestrator with new courses
     global orchestrator
     orchestrator = CourseFinderOrchestrator()
+    clear_benchmark_cache()
     return {"success": True}
 
 @app.post("/admin/update_data")
@@ -390,6 +396,7 @@ async def update_data(req: Request):
     # Rerun RAG: reinitialize agents with updated data
     global orchestrator
     orchestrator = CourseFinderOrchestrator()
+    clear_benchmark_cache()
     return {"success": True}
 
 @app.get("/admin/logs")
@@ -402,7 +409,7 @@ async def get_logs(req: Request):
 async def get_benchmark(req: Request):
     if not is_admin_request(req):
         raise HTTPException(status_code=403, detail="Not authorized")
-    return RetrievalBenchmarkAgent(orchestrator).run()
+    return benchmark_data(force_refresh=True)
 
 @app.get("/admin/courses")
 async def get_courses(req: Request):
