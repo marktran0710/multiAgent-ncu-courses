@@ -544,6 +544,51 @@ class TestIntakeAgentProfileBuilding:
         existing.update("new", args)
         assert existing.completed_courses.count("CSIE1001") == 1
 
+    def test_update_replaces_overlapping_language_constraint(self):
+        existing = UserProfile(
+            raw_input="old",
+            academic_year=2,
+            degree_level="undergrad",
+            completed_courses=[],
+            goals=["AI"],
+            constraints=["English courses only"],
+            search_query="AI English courses",
+            preferred_language="English",
+            language_priority="required",
+        )
+
+        existing.update("Actually Chinese is preferred", {
+            "constraints": ["Chinese courses preferred"],
+            "search_query": "AI Chinese courses",
+        })
+
+        assert existing.constraints == ["Chinese courses preferred"]
+        assert existing.preferred_language == "Chinese"
+        assert existing.language_priority == "preferred"
+
+    def test_update_replaces_overlapping_schedule_constraint_but_keeps_language(self):
+        existing = UserProfile(
+            raw_input="old",
+            academic_year=2,
+            degree_level="undergrad",
+            completed_courses=[],
+            goals=["systems"],
+            constraints=["English courses only", "Only mornings"],
+            search_query="systems English mornings",
+            preferred_language="English",
+            language_priority="required",
+        )
+
+        existing.update("I can only take evening classes now", {
+            "constraints": ["Only evenings"],
+            "search_query": "systems evening classes",
+        })
+
+        assert existing.constraints == ["English courses only", "Only evenings"]
+        assert "Only mornings" not in existing.constraints
+        assert existing.preferred_language == "English"
+        assert existing.language_priority == "required"
+
     def test_apply_language_hint_adds_english_constraint(self):
         args = {"constraints": [], "search_query": "english taught courses"}
         updated = IntakeAgent._apply_language_hint(

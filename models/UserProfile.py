@@ -364,6 +364,70 @@ class UserProfile:
                 return True
         return False
 
+    @staticmethod
+    def _constraint_category(constraint: str) -> str:
+        text = constraint.lower()
+        category_terms = {
+            "language": (
+                "english", "chinese", "language", "taught",
+                "english-taught", "chinese-taught",
+            ),
+            "schedule": (
+                "schedule", "time", "morning", "afternoon", "evening", "night",
+                "monday", "tuesday", "wednesday", "thursday", "friday",
+                "saturday", "sunday", "weekend",
+            ),
+            "workload": (
+                "credit", "credits", "workload", "light", "heavy",
+                "easy", "hard", "intensive",
+            ),
+            "degree": (
+                "undergrad", "undergraduate", "master", "graduate", "phd",
+                "doctoral",
+            ),
+        }
+        for category, terms in category_terms.items():
+            if any(term in text for term in terms):
+                return category
+        return "general"
+
+    @classmethod
+    def _merge_constraints(cls, existing: list[str], incoming: list[str]) -> list[str]:
+        cleaned = [constraint.strip() for constraint in incoming if constraint and constraint.strip()]
+        if not cleaned:
+            return existing
+
+        removals = [
+            constraint for constraint in cleaned
+            if any(kw in constraint.lower() for kw in ("no longer", "not anymore", "removed", "remove"))
+        ]
+        if any(
+            phrase in removal.lower()
+            for removal in removals
+            for phrase in ("all constraints", "any constraints", "no constraints")
+        ):
+            existing = []
+
+        additions = [constraint for constraint in cleaned if constraint not in removals]
+        replaced_categories = (
+            {cls._constraint_category(constraint) for constraint in removals}
+            | {cls._constraint_category(constraint) for constraint in additions}
+        )
+
+        merged = [
+            constraint for constraint in existing
+            if cls._constraint_category(constraint) not in replaced_categories
+        ]
+        for constraint in additions:
+            category = cls._constraint_category(constraint)
+            merged = [
+                existing_constraint for existing_constraint in merged
+                if cls._constraint_category(existing_constraint) != category
+            ]
+            if not any(constraint.lower() == existing_constraint.lower() for existing_constraint in merged):
+                merged.append(constraint)
+        return merged[-4:]
+
     def update(self, new_input: str, args: dict) -> None:
         self.raw_input = new_input
 
@@ -394,21 +458,7 @@ class UserProfile:
 
         # ── constraints ───────────────────────────────────────────────────
         if "constraints" in args:
-            incoming = args["constraints"] or []
-            removals = [
-                c for c in incoming
-                if any(kw in c.lower() for kw in ("no longer", "not anymore", "removed"))
-            ]
-            additions = [
-                c.strip() for c in incoming
-                if c.strip()
-                and c not in removals
-                and not any(c.strip().lower() == x.lower() for x in self.constraints)
-            ]
-            self.constraints = [
-                c for c in self.constraints
-                if not any(r.lower() in c.lower() for r in removals)
-            ] + additions
+            self.constraints = self._merge_constraints(self.constraints, args["constraints"] or [])
             self.preferred_language = self._extract_preferred_language(self.constraints)
             self.language_priority = self._extract_language_priority(self.constraints)
 

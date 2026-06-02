@@ -321,7 +321,9 @@ class IntakeAgent:
                 - "research papers", "publishing", "thesis" are valid academic goals
 
                 4. constraints:
-                - Return ONLY new constraints not already in: {existing_profile.constraints}
+                - Return ONLY constraints stated or corrected in THIS message
+                - If a new constraint overlaps an old one, return the NEW replacement only
+                  (example: old "English only", new "Chinese preferred" => return ["Chinese courses preferred"])
                 - Return [] if no new constraints mentioned
 
                 5. search_query:
