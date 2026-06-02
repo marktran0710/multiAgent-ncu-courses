@@ -391,22 +391,61 @@ class UserProfile:
                 return category
         return "general"
 
+    @staticmethod
+    def _normalize_constraint(constraint: str) -> str:
+        text = constraint.strip()
+        lower = text.lower()
+        language = None
+        if "english" in lower:
+            language = "English"
+        elif "chinese" in lower:
+            language = "Chinese"
+
+        if language:
+            hard_words = (
+                "only", "must", "required", "require", "mandatory",
+                "taught", "english-taught", "chinese-taught",
+            )
+            soft_words = ("prefer", "preferred", "preference", "better", "if possible")
+            priority = (
+                "preferred"
+                if any(word in lower for word in soft_words)
+                and not any(word in lower for word in hard_words)
+                else "only"
+            )
+            return f"{language} courses {priority}"
+
+        return text
+
     @classmethod
     def _merge_constraints(cls, existing: list[str], incoming: list[str]) -> list[str]:
-        cleaned = [constraint.strip() for constraint in incoming if constraint and constraint.strip()]
+        base = [
+            cls._normalize_constraint(constraint)
+            for constraint in existing
+            if constraint and constraint.strip()
+        ]
+        base = cls._collapse_constraint_categories(base)
+        cleaned = [
+            cls._normalize_constraint(constraint)
+            for constraint in incoming
+            if constraint and constraint.strip()
+        ]
         if not cleaned:
-            return existing
+            return base
 
         removals = [
-            constraint for constraint in cleaned
+            cls._normalize_constraint(constraint)
+            for constraint in incoming
+            if constraint and constraint.strip()
             if any(kw in constraint.lower() for kw in ("no longer", "not anymore", "removed", "remove"))
         ]
         if any(
             phrase in removal.lower()
-            for removal in removals
+            for removal in incoming
+            if removal
             for phrase in ("all constraints", "any constraints", "no constraints")
         ):
-            existing = []
+            base = []
 
         additions = [constraint for constraint in cleaned if constraint not in removals]
         replaced_categories = (
@@ -415,7 +454,7 @@ class UserProfile:
         )
 
         merged = [
-            constraint for constraint in existing
+            constraint for constraint in base
             if cls._constraint_category(constraint) not in replaced_categories
         ]
         for constraint in additions:
@@ -426,7 +465,19 @@ class UserProfile:
             ]
             if not any(constraint.lower() == existing_constraint.lower() for existing_constraint in merged):
                 merged.append(constraint)
-        return merged[-4:]
+        return cls._collapse_constraint_categories(merged)[-4:]
+
+    @classmethod
+    def _collapse_constraint_categories(cls, constraints: list[str]) -> list[str]:
+        collapsed: list[str] = []
+        seen_categories: set[str] = set()
+        for constraint in reversed(constraints):
+            category = cls._constraint_category(constraint)
+            if category in seen_categories:
+                continue
+            seen_categories.add(category)
+            collapsed.append(constraint)
+        return list(reversed(collapsed))
 
     def update(self, new_input: str, args: dict) -> None:
         self.raw_input = new_input

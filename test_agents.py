@@ -473,6 +473,28 @@ class TestIntakeAgentProfileBuilding:
         assert "FAKE999" not in profile.completed_courses
         assert "CSIE1001" in profile.completed_courses
 
+    def test_build_profile_keeps_only_one_language_constraint(self):
+        agent = IntakeAgent()
+        args = {
+            "academic_year": 2,
+            "degree_level": "undergrad",
+            "completed_courses": [],
+            "goals": ["AI"],
+            "constraints": [
+                "Chinese courses preferred",
+                "English-taught",
+                "English courses only",
+                "Chinese-taught",
+            ],
+            "search_query": "AI language courses",
+        }
+
+        profile = agent._build_profile("test", args)
+
+        assert profile.constraints == ["Chinese courses only"]
+        assert profile.preferred_language == "Chinese"
+        assert profile.language_priority == "required"
+
     def test_heuristic_fallback_returns_valid_profile(self):
         agent = IntakeAgent()
         profile = agent._heuristic_fallback("I want algorithms")
@@ -565,6 +587,53 @@ class TestIntakeAgentProfileBuilding:
         assert existing.constraints == ["Chinese courses preferred"]
         assert existing.preferred_language == "Chinese"
         assert existing.language_priority == "preferred"
+
+    def test_update_normalizes_and_collapses_messy_language_constraints(self):
+        existing = UserProfile(
+            raw_input="old",
+            academic_year=2,
+            degree_level="undergrad",
+            completed_courses=[],
+            goals=["AI"],
+            constraints=[
+                "Chinese courses preferred",
+                "English-taught",
+                "English courses only",
+                "Chinese-taught",
+            ],
+            search_query="AI language courses",
+        )
+
+        existing.update("same question", {
+            "constraints": [],
+            "search_query": "AI language courses",
+        })
+
+        assert existing.constraints == ["Chinese courses only"]
+        assert existing.preferred_language == "Chinese"
+        assert existing.language_priority == "required"
+
+    def test_update_keeps_newest_language_constraint_from_same_turn(self):
+        existing = UserProfile(
+            raw_input="old",
+            academic_year=2,
+            degree_level="undergrad",
+            completed_courses=[],
+            goals=["AI"],
+            constraints=["English courses only"],
+            search_query="AI English courses",
+            preferred_language="English",
+            language_priority="required",
+        )
+
+        existing.update("Chinese preferred but English taught is okay", {
+            "constraints": ["Chinese courses preferred", "English-taught"],
+            "search_query": "AI language courses",
+        })
+
+        assert existing.constraints == ["English courses only"]
+        assert existing.preferred_language == "English"
+        assert existing.language_priority == "required"
 
     def test_update_replaces_overlapping_schedule_constraint_but_keeps_language(self):
         existing = UserProfile(

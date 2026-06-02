@@ -377,6 +377,7 @@ class IntakeAgent:
             degree_level = degree_from_year(year)
 
         completed = [c for c in (args.get("completed_courses") or []) if c in VALID_COURSE_IDS]
+        constraints = UserProfile._merge_constraints([], args.get("constraints") or [])
 
         return UserProfile(
             raw_input=raw_input,
@@ -384,8 +385,8 @@ class IntakeAgent:
             degree_level=degree_level,
             completed_courses=completed,
             goals=args.get("goals") or [],
-            constraints=args.get("constraints") or [],
-            preferred_language=UserProfile._extract_preferred_language(args.get("constraints") or []),
-            language_priority=UserProfile._extract_language_priority(args.get("constraints") or []),
+            constraints=constraints,
+            preferred_language=UserProfile._extract_preferred_language(constraints),
+            language_priority=UserProfile._extract_language_priority(constraints),
             search_query=args.get("search_query", raw_input).strip(),
         )
