@@ -51,6 +51,7 @@ class TestInternationalAdvisorUI(unittest.TestCase):
             "messageInput",
             "sendButton",
             "clearChatButton",
+            "refreshProfileButton",
             "benchmarkPageButton",
             "adminModeButton",
             "adminOverlay",
@@ -98,6 +99,13 @@ class TestInternationalAdvisorUI(unittest.TestCase):
         self.assertIn("profileMeter.style.width", self.html)
         self.assertIn("profileState.textContent", self.html)
         self.assertRegex(self.html, r"completed_courses\s*&&\s*profile\.completed_courses\.length")
+
+    def test_student_profile_can_be_cleared(self):
+        self.assertIn("Clear", self.visible_text)
+        self.assertIn("refreshProfileButton.addEventListener", self.html)
+        self.assertIn("clearStudentProfile", self.html)
+        self.assertIn("method: 'DELETE'", self.html)
+        self.assertIn("Student profile cleared.", self.html)
 
     def test_composer_has_character_limit_and_loading_state(self):
         self.assertIn("const maxChars = 500;", self.html)

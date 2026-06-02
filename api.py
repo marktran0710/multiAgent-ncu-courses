@@ -279,6 +279,20 @@ async def get_profile(req: Request):
         raise HTTPException(status_code=404, detail="No profile found")
     return user_sessions[session_id].__dict__
 
+@app.delete("/profile")
+async def clear_profile(req: Request):
+    session_id = req.query_params.get("session_id") or req.cookies.get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=404, detail="No session found")
+    user_sessions.pop(session_id, None)
+    last_recommendations.pop(session_id, None)
+    return {
+        "success": True,
+        "session_id": session_id,
+        "profile": None,
+        "history": serialize_chat_history(session_id),
+    }
+
 @app.get("/chat/history")
 async def get_chat_history(req: Request):
     session_id = req.query_params.get("session_id") or req.cookies.get("session_id")

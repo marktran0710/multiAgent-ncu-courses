@@ -443,6 +443,36 @@
             margin-bottom: 12px;
         }
 
+        .profile-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .refresh-profile-button {
+            min-width: 74px;
+            min-height: 34px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #ffffff;
+            color: var(--blue-dark);
+            font-size: 0.86rem;
+            font-weight: 800;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+
+        .refresh-profile-button:hover {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
+
+        .refresh-profile-button:disabled {
+            cursor: wait;
+            color: var(--muted);
+            background: #f8fafc;
+        }
+
         .section-heading h2,
         .section-heading h3 {
             margin: 0;
@@ -999,7 +1029,10 @@
                 <section class="side-section">
                     <div class="section-heading">
                         <h2>Student Profile</h2>
-                        <span class="tag" id="profileState">Empty</span>
+                        <div class="profile-actions">
+                            <button class="refresh-profile-button" id="refreshProfileButton" type="button" aria-label="Clear student profile">Clear</button>
+                            <span class="tag" id="profileState">Empty</span>
+                        </div>
                     </div>
                     <div class="profile-meter">
                         <div class="meter-track"><div class="meter-fill" id="profileMeter"></div></div>
@@ -1125,6 +1158,7 @@
         const connectionStatus = document.getElementById('connectionStatus');
         const statusDot = document.querySelector('.status-dot');
         const profileState = document.getElementById('profileState');
+        const refreshProfileButton = document.getElementById('refreshProfileButton');
         const profileMeter = document.getElementById('profileMeter');
         const profileMeterLabel = document.getElementById('profileMeterLabel');
         const activityList = document.getElementById('activityList');
@@ -1186,6 +1220,7 @@
 
         function bindEvents() {
             sendButton.addEventListener('click', sendMessage);
+            refreshProfileButton.addEventListener('click', clearStudentProfile);
             document.getElementById('clearChatButton').addEventListener('click', clearChat);
             document.getElementById('benchmarkPageButton').addEventListener('click', () => {
                 window.location.href = '/benchmark';
@@ -1943,18 +1978,63 @@
             }));
         }
 
-        async function loadProfile() {
+        async function loadProfile(options = {}) {
+            const manual = Boolean(options.manual);
+            if (manual) {
+                refreshProfileButton.disabled = true;
+                refreshProfileButton.textContent = 'Loading';
+            }
             try {
                 const response = await fetch(`/profile?session_id=${encodeURIComponent(realtimeSessionId)}`);
                 if (response.ok) {
                     const profile = await response.json();
                     updateProfile(profile);
                     chatSummary.textContent = profileSummary(profile);
-                    addActivity('Loaded existing profile.');
+                    addActivity(manual ? 'Student profile refreshed.' : 'Loaded existing profile.');
+                    if (manual) showToast('Student profile refreshed.');
+                    return;
+                }
+                if (manual) {
+                    updateProfile(null);
+                    chatSummary.textContent = 'No active advising profile.';
+                    addActivity('No saved student profile found.');
+                    showToast('No saved student profile yet.');
                 }
             } catch (error) {
                 updateProfile(null);
+                if (manual) showToast('Could not refresh student profile.');
+            } finally {
+                if (manual) {
+                    setProfileButtonIdle();
+                }
             }
+        }
+
+        async function clearStudentProfile() {
+            refreshProfileButton.disabled = true;
+            refreshProfileButton.textContent = 'Clearing';
+            try {
+                const response = await fetch(`/profile?session_id=${encodeURIComponent(realtimeSessionId)}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.detail || 'Could not clear student profile');
+                }
+                updateProfile(null);
+                chatSummary.textContent = 'No active advising profile.';
+                addActivity('Student profile cleared.');
+                showToast('Student profile cleared.');
+            } catch (error) {
+                showToast(error.message);
+            } finally {
+                setProfileButtonIdle();
+            }
+        }
+
+        function setProfileButtonIdle() {
+            refreshProfileButton.disabled = false;
+            refreshProfileButton.textContent = 'Clear';
         }
 
         async function loadChatHistory() {

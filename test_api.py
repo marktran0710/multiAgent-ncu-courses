@@ -184,6 +184,22 @@ class TestChatLogic:
         assert response.status_code == 200
         assert response.json()["search_query"] == "vision"
 
+    def test_clear_profile_endpoint_removes_profile_but_keeps_history(self, isolated_api_state):
+        client = TestClient(app)
+        api_module.user_sessions["known"] = make_profile("vision")
+        api_module.last_recommendations["known"] = "CSIE4001"
+        api_module.chat_histories["known"] = [{"sender": "user", "text": "I want ML"}]
+
+        response = client.delete("/profile?session_id=known")
+
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+        assert response.json()["profile"] is None
+        assert response.json()["history"] == [{"sender": "user", "text": "I want ML"}]
+        assert "known" not in api_module.user_sessions
+        assert "known" not in api_module.last_recommendations
+        assert api_module.chat_histories["known"] == [{"sender": "user", "text": "I want ML"}]
+
     def test_realtime_websocket_session_empty_message_and_response(self, isolated_api_state):
         client = TestClient(app)
         with client.websocket_connect("/ws/chat?session_id=ws-test") as websocket:
