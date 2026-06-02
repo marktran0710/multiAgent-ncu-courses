@@ -83,12 +83,18 @@ class TestInternationalAdvisorUI(unittest.TestCase):
 
         expected_prompts = [
             "I want to study machine learning",
-            "I am a first-year undergraduate student",
+            "I am a second-year undergraduate student",
+            "I am a master student",
             "Recommend an English-taught AI course",
             "I prefer Tuesday or Thursday classes",
         ]
         for prompt in expected_prompts:
             self.assertIn(prompt, self.html)
+
+        background_group = re.search(r"Background:\s*\[(.*?)\]", self.html, re.S)
+        self.assertIsNotNone(background_group)
+        self.assertNotIn("completed", background_group.group(1).lower())
+        self.assertNotIn("finished", background_group.group(1).lower())
 
     def test_message_rendering_avoids_raw_html_injection(self):
         self.assertIn("bubble.textContent = text;", self.html)
